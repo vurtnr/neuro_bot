@@ -1,0 +1,4 @@
+string question      # 用户的问题 (或者系统提示词)
+---
+string answer        # LLM 的回复
+bool success         # 是否成功

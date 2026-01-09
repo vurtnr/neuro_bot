@@ -1,0 +1,14 @@
+[package]
+name = "face_bridge"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+r2r = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+futures = { workspace = true }
+serialport = { workspace = true }

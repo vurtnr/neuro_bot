@@ -1,0 +1,7 @@
+target
+__pycache__
+.vscode
+build
+install
+log
+venv
