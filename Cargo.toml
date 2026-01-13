@@ -7,7 +7,7 @@ members = [
     # "src/robot_interfaces",
     "src/brain_core",
     # "src/audio_engine",
-    # "src/face_bridge",
+    "src/face_bridge",
     "src/iot_controller",
 ]
 
