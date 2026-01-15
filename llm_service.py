@@ -35,8 +35,8 @@ class LLMEngine(Node):
             self.client = None
 
         # 3. 创建服务
-        self.srv = self.create_service(AskLLM, 'ask_llm', self.handle_llm_request)
-        self.get_logger().info("🤖 LLM Engine (DeepSeek Ver.) is READY!")
+        self.srv = self.create_service(AskLLM, '/brain/ask_llm', self.handle_llm_request)
+        self.get_logger().info("🤖 LLM Engine READY! Service: /brain/ask_llm")
 
     def handle_llm_request(self, request, response):
         question = request.question

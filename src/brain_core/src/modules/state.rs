@@ -1,3 +1,4 @@
+//
 use r2r;
 use r2r::robot_interfaces::msg::RobotState;
 
@@ -8,6 +9,7 @@ pub struct StateManager {
 
 impl StateManager {
     pub fn new(node: &mut r2r::Node) -> Result<Self, r2r::Error> {
+        // Topic 对齐: /robot/state (用于同步状态给其他可能的观察者)
         let publisher = node.create_publisher::<RobotState>(
             "/robot/state", 
             r2r::QosProfile::default()
@@ -16,22 +18,18 @@ impl StateManager {
     }
 
     pub fn set_idle(&self) {
-        // 关键修改：添加 "as i32"
         self.publish(RobotState::IDLE as i32); 
     }
 
     pub fn set_listening(&self) {
-        // 关键修改：添加 "as i32"
         self.publish(RobotState::LISTENING as i32);
     }
 
     pub fn set_thinking(&self) {
-        // 关键修改：添加 "as i32"
         self.publish(RobotState::THINKING as i32);
     }
 
     pub fn set_speaking(&self) {
-        // 关键修改：添加 "as i32"
         self.publish(RobotState::SPEAKING as i32);
     }
 
@@ -41,8 +39,6 @@ impl StateManager {
         
         if let Err(e) = self.publisher.publish(&msg) {
             r2r::log_error!("brain_core", "Failed to broadcast state: {}", e);
-        } else {
-            r2r::log_info!("brain_core", "Robot State updated to: {}", state_code);
         }
     }
 }
