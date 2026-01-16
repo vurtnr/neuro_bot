@@ -15,6 +15,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RobotState.msg"
   "msg/FaceEmotion.msg"
   "srv/AskLLM.srv"
+  "msg/VisionResult.msg"
 )
 
 ament_export_dependencies(rosidl_default_runtime)

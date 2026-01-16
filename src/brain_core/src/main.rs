@@ -3,13 +3,15 @@ use modules::emotion::EmotionManager;
 use modules::state::StateManager;
 
 use r2r;
-use r2r::robot_interfaces::msg::AudioSpeech;
+// [修改] 引入 VisionResult 消息类型
+use r2r::robot_interfaces::msg::{AudioSpeech, VisionResult};
 use r2r::robot_interfaces::srv::AskLLM;
 use r2r::std_msgs::msg::String as StringMsg;
 
 use futures::StreamExt;
-use std::sync::Arc; // [修复] 只引入 Arc，不需要 Mutex
-use std::time::Duration;
+use std::sync::Arc; 
+// [修改] 引入 Instant 用于计算冷却时间
+use std::time::{Duration, Instant}; 
 use tokio::time;
 
 #[tokio::main]
@@ -27,8 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tts_publisher =
         node.create_publisher::<StringMsg>("/audio/tts_play", r2r::QosProfile::default())?;
 
-    // [关键修复] 使用 Arc::new 包裹 Client
-    // 这样 llm_client 的类型变成了 Arc<Client<...>>，它是可以被 clone 的
+    // [保留你的修复] 使用 Arc::new 包裹 Client
     let llm_client = Arc::new(
         node.create_client::<AskLLM::Service>("/brain/ask_llm", r2r::QosProfile::default())?,
     );
@@ -36,10 +37,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut speech_sub =
         node.subscribe::<AudioSpeech>("/audio/speech", r2r::QosProfile::default())?;
 
+    // [新增] 订阅视觉结果 Topic
+    let mut vision_sub = 
+        node.subscribe::<VisionResult>("/vision/result", r2r::QosProfile::default())?;
+
     println!("🔗 Waiting for dependencies...");
 
+    // ================================================================
+    // [关键步骤] 资源克隆
+    // 原有的 Audio 任务会 move 走 emotion_manager 和 tts_publisher。
+    // 所以我们需要在它们被 move 之前，先克隆一份给视觉任务用。
+    // ================================================================
+    let em_for_vision = emotion_manager.clone();
+    let tts_pub_for_vision = tts_publisher.clone();
+
+    // ================================================================
+    // 👂 任务 1: 听觉回路 (保留你原有的逻辑)
+    // ================================================================
     tokio::task::spawn(async move {
-        println!("✅ Brain Logic Loop Started.");
+        println!("✅ Brain Audio Logic Loop Started.");
 
         while let Some(msg) = speech_sub.next().await {
             if !msg.is_final {
@@ -52,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             state_manager.set_thinking();
             emotion_manager.set_thinking();
 
-            // [修复后] 这里 clone 的是 Arc 指针，而不是 Client 本身，这是合法的且开销极小
+            // [保留你的修复] 这里 clone 的是 Arc 指针
             let client = llm_client.clone();
 
             let mut s_mgr = state_manager.clone();
@@ -64,7 +80,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let request = AskLLM::Request { question };
 
                 println!("🤔 Requesting LLM...");
-                // client 是 Arc<Client>，它会自动解引用调用 request
                 match client.request(&request).expect("Client fail").await {
                     Ok(response) => {
                         if response.success {
@@ -99,6 +114,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 s_mgr.set_idle();
                 e_mgr.set_neutral();
             });
+        }
+    });
+
+    // ================================================================
+    // 👁️ 任务 2: 视觉回路 (新增的部分)
+    // ================================================================
+    tokio::task::spawn(async move {
+        println!("✅ Brain Vision Logic Loop Started.");
+        
+        // 视觉记忆：防止同一张二维码一直刷屏
+        let mut last_content = String::new();
+        let mut last_seen_time = Instant::now();
+        let mut is_first = true; // 第一次看到即使时间很短也播报
+
+        while let Some(msg) = vision_sub.next().await {
+            let now = Instant::now();
+            let cooldown = Duration::from_secs(5); // 冷却时间 5 秒
+
+            // 逻辑：如果内容变了，或者距离上次播报超过5秒
+            if msg.content != last_content || now.duration_since(last_seen_time) > cooldown || is_first {
+                
+                println!("👁️ Saw [{}]: {}", msg.type_, msg.content);
+                
+                // 更新记忆
+                last_content = msg.content.clone();
+                last_seen_time = now;
+                is_first = false;
+
+                // 只有二维码才触发语音
+                if msg.type_ == "qrcode" {
+                    // 1. 变表情：开心
+                    em_for_vision.set_happy(); 
+                    
+                    // 2. 组织语言
+                    let text_to_say = format!("我看到了二维码，内容是：{}", msg.content);
+                    let tts_msg = StringMsg { data: text_to_say };
+                    
+                    println!("🗣️ Announcing QR Code...");
+                    
+                    // 3. 发送 TTS
+                    if let Err(e) = tts_pub_for_vision.publish(&tts_msg) {
+                         eprintln!("❌ Vision TTS Error: {}", e);
+                    }
+                    
+                    // 4. 稍微保持一会儿状态，然后恢复
+                    time::sleep(Duration::from_secs(3)).await;
+                    em_for_vision.set_neutral();
+                }
+            }
         }
     });
 

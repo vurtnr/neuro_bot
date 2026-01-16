@@ -9,7 +9,7 @@ def generate_launch_description():
             executable='camera_node',
             name='camera_driver',
             parameters=[{
-                'camera': 0,         # 你的截图显示 0 号能被正确识别为 imx708
+                # 'camera': 1,         # 你的截图显示 0 号能被正确识别为 imx708
                 'width': 640,
                 'height': 480,
                 'format': 'YUYV',    # <--- 重点：必须是大写！
