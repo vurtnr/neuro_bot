@@ -1,7 +1,18 @@
-# 硬件控制 (蓝牙光伏支架)
 [package]
 name = "iot_controller"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
+r2r = { git = "https://github.com/sequenceplanner/r2r", branch = "master" }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+env_logger = "0.10"
+futures = "0.3"
+# rppal = "0.14" # 如果您用了 rppal 请取消注释，或者根据实际代码添加依赖
+
+[build-dependencies]
+r2r = { git = "https://github.com/sequenceplanner/r2r", branch = "master" }
+
