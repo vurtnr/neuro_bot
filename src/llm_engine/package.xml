@@ -1,14 +1,13 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>audio_engine</name>
+  <name>llm_engine</name>
   <version>0.0.0</version>
-  <description>Audio Engine with ASR and TTS</description>
-  <maintainer email="haihua.jym@gmail.com">user</maintainer>
-  <license>TODO</license>
+  <description>TODO: Package description</description>
+  <maintainer email="haihua.jym@gmail.com">ubuntu</maintainer>
+  <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
-  <depend>std_msgs</depend>
   <depend>robot_interfaces</depend>
 
   <test_depend>ament_copyright</test_depend>
