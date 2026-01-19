@@ -16,6 +16,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/FaceEmotion.msg"
   "srv/AskLLM.srv"
   "msg/VisionResult.msg"
+  "srv/ConnectBluetooth.srv"
+  "msg/BluetoothCommand.msg"
 )
 
 ament_export_dependencies(rosidl_default_runtime)
