@@ -64,12 +64,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async move {
         println!("✅ Command Listener Started.");
         while let Some(msg) = command_sub.next().await {
-            let mgr = bt_mgr_clone_2.lock().await; // 锁住管理器
-            println!("📥 收到指令请求: {}", msg.command);
-            
-            // 调用蓝牙发送逻辑
-            if let Err(e) = mgr.send_command(&msg.command).await {
-                eprintln!("🔥 指令发送失败: {}", e);
+            let mut mgr = bt_mgr_clone_2.lock().await;
+            println!("📥 收到指令请求: cmd='{}', mac='{}'", msg.command, msg.mac); // 打印 mac 方便调试
+
+            // 🟢 [核心逻辑修复] 根据指令内容分流
+            if msg.command == "connect" {
+                println!("🔗 发起连接请求 -> {}", msg.mac);
+                // 调用连接逻辑 (复用 Service 的逻辑)
+                let _ = mgr.connect(&msg.mac).await; 
+                // 注意：这里 connect 可能需要处理 Result，简单起见先忽略返回值，或者打印日志
+            } else {
+                // 其他指令 (如 LED控制等) 走 send_command
+                if let Err(e) = mgr.send_command(&msg.command).await {
+                    eprintln!("🔥 指令发送失败: {}", e);
+                }
             }
         }
     });

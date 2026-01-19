@@ -131,3 +131,24 @@ ros2 topic list
 ros2 topic echo /iot/bluetooth_command
 
 ```
+# === NeuroBot 接口更新专用脚本 ===
+
+# 1. 重新编译接口包
+cd ~/neuro_bot_ws
+colcon build --packages-select robot_interfaces
+
+# 2. 【关键】把新生成的库再次覆盖到系统目录
+# 这一步是防止系统还在用旧版本
+echo "🔄 正在更新系统库文件..."
+NEW_SO_DIR=$(find ~/neuro_bot_ws/install/robot_interfaces -name "librobot_interfaces__rosidl_typesupport_introspection_c.so" | head -n 1 | xargs dirname)
+
+if [ -n "$NEW_SO_DIR" ]; then
+    sudo cp "$NEW_SO_DIR"/*.so /usr/lib/
+    sudo ldconfig
+    echo "✅ 系统库已更新到最新版本！"
+else
+    echo "❌ 编译可能失败了，没找到新文件。"
+fi
+
+# 3. 然后再去编译 r2r 或其他业务模块
+colcon build --symlink-install --packages-select r2r ...
