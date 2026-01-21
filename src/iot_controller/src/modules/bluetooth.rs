@@ -40,6 +40,7 @@ impl BluetoothManager {
 
         for p in peripherals {
             let properties = p.properties().await?;
+            println!("🔗 广播设备参数值：{:?}",p);
             let Some(props) = properties else { continue };
             let address_str = p.address().to_string().replace(":", "").to_uppercase();
             let name = props.local_name.unwrap_or_else(|| "Unknown".to_string());

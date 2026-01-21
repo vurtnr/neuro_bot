@@ -89,7 +89,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         while let Some(msg) = vision_sub.next().await {
             let now = Instant::now();
-            let cooldown = Duration::from_secs(5);
+            // 🟢 修改：将冷却时间从 5秒 增加到 20秒
+            // 这样即使蓝牙连接失败（耗时15秒），回来后也不会立刻再次触发
+            let cooldown = Duration::from_secs(20);
             
             // 守卫检查
             if !sm_for_vision.can_accept_vision_task() { continue; }
