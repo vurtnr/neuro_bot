@@ -1,0 +1,8 @@
+[patch.crates-io.face_bridge]
+path = "/home/ubuntu/neuro_bot_ws/install/face_bridge/share/face_bridge/rust"
+
+[patch.crates-io.brain_core]
+path = "/home/ubuntu/neuro_bot_ws/install/brain_core/share/brain_core/rust"
+
+[patch.crates-io.iot_controller]
+path = "/home/ubuntu/neuro_bot_ws/install/iot_controller/share/iot_controller/rust"

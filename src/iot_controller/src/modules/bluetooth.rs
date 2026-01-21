@@ -68,7 +68,7 @@ impl BluetoothManager {
             }
         }
         
-        Err(format!("❌ 未扫描到 MAC 为 {} 的设备", target_mac_str).into())
+        Err(format!("❌ 未扫描到对应 MAC 地址 的设备").into())
     }
 
     pub async fn send_command(&self, command: &str) -> Result<(), Box<dyn Error>> {
