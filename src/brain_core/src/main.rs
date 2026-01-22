@@ -36,7 +36,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let llm_client = Arc::new(node.create_client::<AskLLM::Service>("/brain/ask_llm", r2r::QosProfile::default())?);
 
     let mut speech_sub = node.subscribe::<AudioSpeech>("/audio/speech", r2r::QosProfile::default())?;
-    let mut vision_sub = node.subscribe::<VisionResult>("/vision/result", r2r::QosProfile::default())?;
+
+    // 必须使用 BEST_EFFORT 以匹配 vision_engine 的发布配置
+    let vision_qos = r2r::QosProfile {
+        reliability: r2r::ReliabilityPolicy::BestEffort,
+        ..r2r::QosProfile::default()
+    };
+    let mut vision_sub = node.subscribe::<VisionResult>("/vision/result", vision_qos)?;
 
     // 3. 建立内部神经通道 (MPSC Channel)
     let (tx, mut rx) = mpsc::channel::<BrainEvent>(32);
