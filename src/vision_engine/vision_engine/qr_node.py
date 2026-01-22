@@ -20,7 +20,7 @@ class QRNode(Node):
     def __init__(self):
         super().__init__('vision_qr_node')
 
-        # 必须使用 Best Effort 配合摄像头
+        # 必须使用 Best Effort 配合摄像头和跨语言通信
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
@@ -33,7 +33,8 @@ class QRNode(Node):
             self.listener_callback,
             qos_profile)
 
-        self.publisher_ = self.create_publisher(VisionResult, '/vision/result', 10)
+        # Publisher 也使用 BEST_EFFORT，与 brain_core 的订阅匹配
+        self.publisher_ = self.create_publisher(VisionResult, '/vision/result', qos_profile)
 
         # 订阅机器人状态，用于在 IDLE 时重置处理状态
         self.state_sub = self.create_subscription(
