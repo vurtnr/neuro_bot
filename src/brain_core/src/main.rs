@@ -11,6 +11,11 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::time;
 
+// 蓝牙指令枚举
+enum Command {
+    SendBleCommand { mac: String, data: String },
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
@@ -36,6 +41,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 3. 建立内部神经通道 (MPSC Channel)
     let (tx, mut rx) = mpsc::channel::<BrainEvent>(32);
 
+    // 4. 蓝牙指令通道
+    let (cmd_tx, mut cmd_rx) = mpsc::channel::<Command>(32);
+
     println!("🔗 System Ready. Entering Event Loop.");
 
     // --- 任务 A: 视觉感知 (Producer) ---
@@ -49,6 +57,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // 尝试解析 JSON
             if let Ok(payload) = serde_json::from_str::<NeuralLinkPayload>(&msg.content) {
                 if payload.t == "ble" {
+                    // 验证 MAC 地址长度
+                    if payload.m.len() < 12 {
+                        r2r::log_warn!("brain_core", "Invalid MAC address length: {}", payload.m.len());
+                        continue;
+                    }
+
                     // 解析 MAC 地址并格式化
                     let mac = format!(
                         "{}:{}:{}:{}:{}:{}",
@@ -125,6 +139,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    // --- 任务 E: 蓝牙指令处理器 ---
+    let event_tx_for_cmd = tx.clone();
+    tokio::spawn(async move {
+        while let Some(cmd) = cmd_rx.recv().await {
+            match cmd {
+                Command::SendBleCommand { mac, data } => {
+                    println!("📤 发送蓝牙指令: {} -> {}", mac, data);
+                    // 模拟指令发送完成 (实际由 IoT 服务响应后触发)
+                    // 这里发送事件通知指令已发送
+                    let _ = event_tx_for_cmd.send(BrainEvent::BluetoothCommandSent).await;
+                }
+            }
+        }
+    });
+
     // --- 任务 D: 主控状态机 (Actor Loop) ---
     let mut bt_lifecycle = BtLifecycle::Idle;
     let mut last_connected_mac = String::new(); 
@@ -136,13 +165,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             BrainEvent::VisionTargetFound(payload) => {
                 // 只有在空闲且非重复时才响应
                 if let BtLifecycle::Idle = bt_lifecycle {
-                    if payload.m == last_connected_mac { continue; } 
-                    
+                    if payload.m == last_connected_mac { continue; }
+
                     println!("👁️ 锁定目标: {} (CMD: {:?})", payload.m, payload.d);
-                    
-                    bt_lifecycle = BtLifecycle::Connecting { 
-                        target_mac: payload.m.clone(), 
-                        start_time: Instant::now() 
+
+                    bt_lifecycle = BtLifecycle::Connecting {
+                        target_mac: payload.m.clone(),
+                        command: payload.d.unwrap_or_default(),
+                        start_time: Instant::now()
                     };
                     
                     // 设置忙碌，防止语音打断
@@ -193,23 +223,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // [事件 2] 连接结果返回
             BrainEvent::ConnectionResult { success, message } => {
-                if let BtLifecycle::Connecting { target_mac, .. } = &bt_lifecycle {
+                if let BtLifecycle::Connecting { target_mac, command, .. } = &bt_lifecycle {
                     if success {
                         println!("✅ 操作成功: {}", message);
                         last_connected_mac = target_mac.clone();
                         bt_lifecycle = BtLifecycle::Connected { device_name: "Unknown".into() };
                         let _ = tts_publisher.publish(&StringMsg { data: "指令已发送".to_string() });
+
+                        // 触发 BluetoothConnected 事件，启动下发指令流程
+                        let _ = tx.send(BrainEvent::BluetoothConnected {
+                            device_name: target_mac.clone(),
+                            command: command.clone()
+                        }).await;
                     } else {
                         println!("❌ 操作失败: {}", message);
-                        bt_lifecycle = BtLifecycle::Failed { 
-                            reason: message.clone(), 
-                            cooldown_until: Instant::now() + Duration::from_secs(5) 
+                        bt_lifecycle = BtLifecycle::Failed {
+                            reason: message.clone(),
+                            cooldown_until: Instant::now() + Duration::from_secs(5)
                         };
                         let _ = tts_publisher.publish(&StringMsg { data: "连接失败".to_string() });
+                        // 恢复空闲
+                        state_manager.set_idle();
+                        emotion_manager.set_neutral();
                     }
-                    // 恢复空闲
-                    state_manager.set_idle();
-                    emotion_manager.set_neutral();
                 }
             }
 
@@ -242,6 +278,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     bt_lifecycle = BtLifecycle::Connecting {
                         target_mac: mac.clone(),
+                        command: command.clone(),
                         start_time: Instant::now()
                     };
 
@@ -278,12 +315,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // [新事件 5] 蓝牙已连接，下发指令
             BrainEvent::BluetoothConnected { device_name, command } => {
                 println!("✅ 蓝牙已连接: {}, 下发指令: {}", device_name, command);
+
+                // 切换状态为 SENDING_CMD
+                state_manager.set_sending_cmd();
+
                 // 播报语音
                 let _ = tts_publisher.publish(&StringMsg { data: String::from("蓝牙设备已连接，并下发查询指令") });
+
                 // 切换表情为 HAPPY
                 emotion_manager.set_happy();
 
-                // 下发指令逻辑已在 QrCodeScanned 中处理
+                // 下发指令
+                if !command.is_empty() {
+                    let _ = cmd_tx.send(Command::SendBleCommand {
+                        mac: device_name,
+                        data: command
+                    }).await;
+                }
             }
 
             // [新事件 6] 蓝牙指令已发送

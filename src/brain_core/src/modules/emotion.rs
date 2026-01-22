@@ -49,9 +49,6 @@ impl EmotionManager {
 
         if let Err(e) = self.publisher.publish(&msg) {
             r2r::log_error!("brain_core", "Failed to send emotion: {}", e);
-        } else {
-            // 减少日志刷屏，仅调试时开启
-            // r2r::log_info!("brain_core", "Emotion -> {}", emotion_str);
         }
     }
 }
