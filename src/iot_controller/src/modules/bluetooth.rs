@@ -52,11 +52,9 @@ impl BluetoothManager {
         let peripherals = central.peripherals().await?;
         let normalized_target = mac_str.replace(":", "").to_uppercase();
 
-        // ⚠️ 修复: 收集所有 Peripheral，先找到目标再克隆，避免迭代时临时对象失效
-        let peripheral_list: Vec<Peripheral> = peripherals.collect();
-
-        for p in &peripheral_list {
-            let address_str = p.address().to_string().replace(":", "").to_uppercase();
+        // ⚠️ 修复: peripherals 已经是 Vec，直接使用
+        for p in &peripherals {
+            let address_str: String = p.address().to_string().replace(":", "").to_uppercase();
 
             if address_str == normalized_target {
                 println!("🔗 找到设备，正在连接...");
