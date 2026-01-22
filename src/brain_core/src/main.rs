@@ -8,7 +8,8 @@ use r2r::std_msgs::msg::String as StringMsg;
 use futures::StreamExt;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
+use tokio::sync::{mpsc};
 use tokio::time;
 
 // 蓝牙指令枚举
@@ -383,4 +384,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+    Ok(())
 }
