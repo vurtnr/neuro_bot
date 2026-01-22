@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 必须使用 BEST_EFFORT 以匹配 vision_engine 的发布配置
     let vision_qos = r2r::QosProfile {
-        reliability: r2r::ReliabilityPolicy::BestEffort,
+        reliability: r2r::qos::ReliabilityPolicy::BestEffort,
         ..r2r::QosProfile::default()
     };
     let mut vision_sub = node.subscribe::<VisionResult>("/vision/result", vision_qos)?;
