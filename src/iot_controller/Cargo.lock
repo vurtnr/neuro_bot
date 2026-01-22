@@ -1674,15 +1674,3 @@ name = "zmij"
 version = "1.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfcd145825aace48cff44a8844de64bf75feec3080e0aa5cdbde72961ae51a65"
-
-[[patch.unused]]
-name = "brain_core"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "face_bridge"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "iot_controller"
-version = "0.1.0"

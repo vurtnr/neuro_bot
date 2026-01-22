@@ -1,4 +1,19 @@
-string address
+# 目标设备的 MAC 地址
+string mac
+
+# [新增] 目标服务 UUID (Service UUID)
+# 必须提供，否则控制器无法找到对应服务
+string service_uuid
+
+# [新增] 目标特征值 UUID (Characteristic UUID)
+# 必须提供，控制器将向此特征值写入指令
+string characteristic_uuid
+
+# [新增] 连接成功后立即发送的指令 (Hex String)
+# 例如 "0A03000000258490"，控制器会将其转为 Bytes 发送
+# 如果为空，则只连接不发送
+string command
+
 ---
 bool success
 string message

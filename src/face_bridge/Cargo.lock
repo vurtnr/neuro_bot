@@ -1334,9 +1334,5 @@ name = "brain_core"
 version = "0.1.0"
 
 [[patch.unused]]
-name = "face_bridge"
-version = "0.1.0"
-
-[[patch.unused]]
 name = "iot_controller"
 version = "0.1.0"

@@ -8,6 +8,8 @@
   <license>MIT</license>
 
   <buildtool_depend>ament_cargo</buildtool_depend>
+  
+  <depend>robot_interfaces</depend>
   <depend>r2r</depend>
 
   <export>
