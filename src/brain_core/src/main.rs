@@ -48,7 +48,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("🔗 System Ready. Entering Event Loop.");
 
-    // --- 任务 A: 视觉感知 (Producer) ---
+    // --- 任务 A: ROS Spin 任务 (关键！必须在独立任务中运行以处理 DDS 消息) ---
+    let ctx_for_spin = ctx.clone();
+    tokio::task::spawn(async move {
+        loop {
+            ctx_for_spin.spin_once(Duration::from_millis(10));
+            // 让出一点点时间给其他任务
+            tokio::time::sleep(Duration::from_micros(100)).await;
+        }
+    });
+
+    // --- 任务 B: 视觉感知 (Producer) ---
     // 负责解析 Neural Link 协议
     let vision_tx = tx.clone();
     let emotion_manager_for_vision = emotion_manager.clone();
@@ -96,7 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // --- 任务 B: 心跳起搏器 ---
+    // --- 任务 C: 心跳起搏器 ---
     let timer_tx = tx.clone();
     tokio::task::spawn(async move {
         let mut interval = time::interval(Duration::from_millis(500));
@@ -106,7 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // --- 任务 C: 听觉回路 (保持独立) ---
+    // --- 任务 D: 听觉回路 (保持独立) ---
     let sm_for_audio = state_manager.clone();
     let em_for_audio = emotion_manager.clone();
     let tts_pub_for_audio = tts_publisher.clone();
@@ -165,7 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // --- 任务 D: 主控状态机 (Actor Loop) ---
+    // --- 任务 F: 主控状态机 (Actor Loop) ---
     let mut bt_lifecycle = BtLifecycle::Idle;
     let mut last_connected_mac = String::new(); 
 
