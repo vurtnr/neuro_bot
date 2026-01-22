@@ -6,10 +6,9 @@ use r2r::robot_interfaces::srv::{AskLLM, ConnectBluetooth};
 use r2r::robot_interfaces::msg::{AudioSpeech, FaceEmotion, VisionResult};
 use r2r::std_msgs::msg::String as StringMsg;
 use futures::StreamExt;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
-use tokio::sync::{mpsc};
+use tokio::sync::mpsc;
 use tokio::time;
 
 // 蓝牙指令枚举
@@ -26,20 +25,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let node = Arc::new(Mutex::new(r2r::Node::create(ctx, "brain_core", "")?));
 
     // 1. 初始化模块
-    let emotion_manager = EmotionManager::new(&mut *node.lock().await)?;
-    let state_manager = StateManager::new(&mut *node.lock().await)?;
+    let emotion_manager = EmotionManager::new(&mut *node.lock().unwrap())?;
+    let state_manager = StateManager::new(&mut *node.lock().unwrap())?;
 
     // 2. 通信接口
-    let tts_publisher = node.lock().await.create_publisher::<StringMsg>("/audio/tts_play", r2r::QosProfile::default())?;
+    let tts_publisher = node.lock().unwrap().create_publisher::<StringMsg>("/audio/tts_play", r2r::QosProfile::default())?;
 
     // ⚠️ 注意：这里连接的是我们刚刚修好的 IoT 服务
-    let bt_client = Arc::new(node.lock().await.create_client::<ConnectBluetooth::Service>("/iot/connect_bluetooth", r2r::QosProfile::default())?);
-    let llm_client = Arc::new(node.lock().await.create_client::<AskLLM::Service>("/brain/ask_llm", r2r::QosProfile::default())?);
+    let bt_client = Arc::new(node.lock().unwrap().create_client::<ConnectBluetooth::Service>("/iot/connect_bluetooth", r2r::QosProfile::default())?);
+    let llm_client = Arc::new(node.lock().unwrap().create_client::<AskLLM::Service>("/brain/ask_llm", r2r::QosProfile::default())?);
 
-    let mut speech_sub = node.lock().await.subscribe::<AudioSpeech>("/audio/speech", r2r::QosProfile::default())?;
+    let mut speech_sub = node.lock().unwrap().subscribe::<AudioSpeech>("/audio/speech", r2r::QosProfile::default())?;
 
     // 使用 Sensor Data QoS（BestEffort），与 vision_engine 的发布配置匹配
-    let mut vision_sub = node.lock().await.subscribe::<VisionResult>("/vision/result", r2r::QosProfile::sensor_data())?;
+    let mut vision_sub = node.lock().unwrap().subscribe::<VisionResult>("/vision/result", r2r::QosProfile::sensor_data())?;
 
     // 3. 建立内部神经通道 (MPSC Channel)
     let (tx, mut rx) = mpsc::channel::<BrainEvent>(32);
@@ -53,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let node_for_spin = node.clone();
     tokio::task::spawn(async move {
         loop {
-            node_for_spin.lock().await.spin_once(Duration::from_millis(20));
+            node_for_spin.lock().unwrap().spin_once(Duration::from_millis(20));
             // 让出更多时间给其他任务
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
