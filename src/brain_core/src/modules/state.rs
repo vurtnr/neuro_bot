@@ -87,9 +87,25 @@ pub enum BrainEvent {
 #[derive(Debug, Deserialize, Clone)]
 pub struct NeuralLinkPayload {
     pub t: String,
+    #[serde(alias = "mac")] 
     pub m: String,
+    
+    // 兼容 {"s": "..."} 和 {"service": "..."}
+    #[serde(alias = "service")]
     pub s: Option<String>,
+    
+    // 兼容 {"c": "..."} 和 {"char": "..."} (特征值 UUID)
+    #[serde(alias = "char")]
+    #[serde(alias = "characteristic")]
     pub c: Option<String>,
+    
+    // 兼容 {"d": "..."} 和 {"cmd": "..."} (指令数据)
+    // ⚠️ Vision 层的 "cmd" 字段会映射到这里的 'd'
+    #[serde(alias = "cmd")]
+    #[serde(alias = "data")]
     pub d: Option<String>,
+    
+    // 兼容设备名称
+    #[serde(alias = "name")]
     pub n: Option<String>,
 }
