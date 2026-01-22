@@ -74,18 +74,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("✅ JSON 解析成功: t={}", payload.t);
                     if payload.t == "ble" {
                         // 验证 MAC 地址长度
-                        if payload.m.len() < 12 {
+                        // 如果已经是带冒号格式（17字符），直接使用
+                        // 否则应该是无冒号格式（12字符）
+                        if payload.m.len() != 12 && payload.m.len() != 17 {
                             r2r::log_warn!("brain_core", "Invalid MAC address length: {}", payload.m.len());
                             continue;
                         }
 
                         // 解析 MAC 地址并格式化
-                        let mac = format!(
-                            "{}:{}:{}:{}:{}:{}",
-                            &payload.m[0..2], &payload.m[2..4],
-                            &payload.m[4..6], &payload.m[6..8],
-                            &payload.m[8..10], &payload.m[10..12]
-                        );
+                        let mac = if payload.m.contains(':') {
+                            // 已经有冒号，直接使用
+                            payload.m.clone()
+                        } else {
+                            // 无冒号，添加冒号格式化
+                            format!(
+                                "{}:{}:{}:{}:{}:{}",
+                                &payload.m[0..2], &payload.m[2..4],
+                                &payload.m[4..6], &payload.m[6..8],
+                                &payload.m[8..10], &payload.m[10..12]
+                            )
+                        };
 
                         // 1. 播报语音
                         let _ = tts_pub_for_vision.publish(&StringMsg { data: String::from("已识别出二维码中的 MAC 地址，正在连接蓝牙设备") });
