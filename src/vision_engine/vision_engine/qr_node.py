@@ -36,7 +36,6 @@ class QRNode(Node):
         self.bridge = CvBridge()
         
         # 调试开关
-        self.last_log_time = 0
         self.frame_count = 0
         
         if PYZBAR_AVAILABLE:
