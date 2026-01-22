@@ -37,6 +37,7 @@ class QRNode(Node):
         
         # 调试开关
         self.frame_count = 0
+        self.last_published_content = None  # 用于去重
         
         if PYZBAR_AVAILABLE:
             self.get_logger().info('✅ 视觉引擎就绪 (pyzbar 极速模式)')
@@ -119,6 +120,11 @@ class QRNode(Node):
             self.get_logger().error(f'System Error: {e}')
 
     def publish_result(self, content_str):
+        # 去重：只有内容变化时才发布
+        if content_str == self.last_published_content:
+            return
+
+        self.last_published_content = content_str
         self.get_logger().info(f'🚀 发送控制指令: {content_str}')
         msg = VisionResult()
         msg.type = "ble"
