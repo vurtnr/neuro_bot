@@ -54,7 +54,7 @@ class QRNode(Node):
     def listener_callback(self, msg):
         self.frame_count += 1
         if self.frame_count % 60 == 0:
-             self.get_logger().info(f'📺 监控中... (分辨率: {msg.width}x{msg.height})')
+            self.get_logger().info(f'📺 监控中... (分辨率: {msg.width}x{msg.height})')
 
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
@@ -77,10 +77,13 @@ class QRNode(Node):
                     data, points, _ = self.detector.detectAndDecode(cv_image)
                     if points is not None and data:
                         detected_contents.append(data)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.get_logger().warn(f'OpenCV 识别失败: {e}')
 
             # --- 结果解析与协议转换 ---
+            if detected_contents:
+                self.get_logger().info(f'🔎 识别到内容: {detected_contents}')
+
             for data in detected_contents:
                 if not data: continue
                 
@@ -108,8 +111,8 @@ class QRNode(Node):
                         full_json = json.dumps(full_msg)
                         self.publish_result(full_json)
                         
-                except json.JSONDecodeError:
-                    pass
+                except json.JSONDecodeError as e:
+                    self.get_logger().warn(f'JSON 解析失败: {e}, 数据: {data[:50]}...')
 
         except Exception as e:
             self.get_logger().error(f'System Error: {e}')
