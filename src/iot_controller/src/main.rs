@@ -4,7 +4,7 @@ use r2r;
 use r2r::robot_interfaces::srv::ConnectBluetooth;
 // use r2r::robot_interfaces::msg::BluetoothCommand; // ⚠️ 旧的 Topic 方式暂时屏蔽，因为 V1 协议强依赖 UUID
 use futures::StreamExt;
-use std::sync::{Arc};
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 #[tokio::main]
@@ -34,24 +34,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async move {
         println!("✅ Service Listener Started.");
         while let Some(req) = connect_service.next().await {
-            let mut mgr = bt_mgr_clone_1.lock().await;
-            
-            // 🟢 [Fix 1] 适配新字段: 从 req.message 中获取 mac, service_uuid, characteristic_uuid, command
-            let target_mac = &req.message.mac;
-            let service_uuid = &req.message.service_uuid;
-            let char_uuid = &req.message.characteristic_uuid;
-            let cmd_hex = &req.message.command;
+            // 直接在 async 上下文中处理，不要嵌套 block_on
+            let target_mac = req.message.mac.clone();
+            let service_uuid = req.message.service_uuid.clone();
+            let char_uuid = req.message.characteristic_uuid.clone();
+            let cmd_hex = req.message.command.clone();
 
             println!("📥 收到指令: MAC={} CMD={}", target_mac, cmd_hex);
-            
-            // 🟢 [Fix 2] 调用新的通用执行方法 connect_and_execute
-            let result = mgr.connect_and_execute(target_mac, service_uuid, char_uuid, cmd_hex).await;
-            
-            let (success, msg) = match result {
-                Ok(info) => (true, info),
-                Err(e) => (false, e.to_string()),
+
+            // 在独立任务中执行蓝牙操作，使用超时防止永久阻塞
+            let mgr = bt_mgr_clone_1.clone();
+            let connect_result = tokio::time::timeout(
+                std::time::Duration::from_secs(20),
+                async move {
+                    let mut mgr_guard = mgr.lock().await;
+                    mgr_guard.connect_and_execute(&target_mac, &service_uuid, &char_uuid, &cmd_hex).await
+                }
+            ).await;
+
+            let (success, msg) = match connect_result {
+                Ok(Ok(info)) => (true, info),
+                Ok(Err(e)) => (false, format!("Bluetooth error: {}", e)),
+                Err(_) => (false, "Connection timeout (20s)".to_string()),
             };
-            
+
             println!("🔄 执行结果: {} ({})", success, msg);
 
             // 回复结果
@@ -75,7 +81,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     */
 
+    // ================================================================
+    // 👂 任务 3: ROS Spin 循环 (独立任务)
+    // ================================================================
+    let node_for_spin = Arc::new(tokio::sync::Mutex::new(node));
+    let node_spin = node_for_spin.clone();
+    tokio::spawn(async move {
+        loop {
+            let mut node = node_spin.lock().await;
+            node.spin_once(std::time::Duration::from_millis(20));
+            drop(node);
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    });
+
+    // 主任务保持活跃
     loop {
-        node.spin_once(std::time::Duration::from_millis(100));
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
     }
 }

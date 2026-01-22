@@ -52,20 +52,28 @@ impl BluetoothManager {
         let peripherals = central.peripherals().await?;
         let normalized_target = mac_str.replace(":", "").to_uppercase();
 
-        for p in peripherals {
+        // ⚠️ 修复: 收集所有 Peripheral，先找到目标再克隆，避免迭代时临时对象失效
+        let peripheral_list: Vec<Peripheral> = peripherals.collect();
+
+        for p in &peripheral_list {
             let address_str = p.address().to_string().replace(":", "").to_uppercase();
-            
+
             if address_str == normalized_target {
                 println!("🔗 找到设备，正在连接...");
                 central.stop_scan().await?;
-                p.connect().await?;
-                
+
+                // ⚠️ 修复: 克隆 Peripheral 供后续使用
+                let p_clone = p.clone();
+
+                // 连接使用克隆的 peripheral
+                p_clone.connect().await?;
+
                 println!("✅ 连接建立! 正在发现服务...");
-                p.discover_services().await?;
+                p_clone.discover_services().await?;
 
                 // 3. 动态寻找特征值
-                let chars = p.characteristics();
-                
+                let chars = p_clone.characteristics();
+
                 // --- 核心修改：匹配逻辑升级 ---
                 // 寻找满足条件的特征值：
                 // A. 如果指定了 UUID，必须完全匹配
@@ -77,7 +85,7 @@ impl BluetoothManager {
                         },
                         _ => {
                             // 自动模式：只要能写就行
-                            c.properties.contains(CharPropFlags::WRITE) || 
+                            c.properties.contains(CharPropFlags::WRITE) ||
                             c.properties.contains(CharPropFlags::WRITE_WITHOUT_RESPONSE)
                         }
                     }
@@ -88,12 +96,12 @@ impl BluetoothManager {
                     println!("   属性: {:?}", c.properties);
 
                     self.write_char = Some(c.clone());
-                    self.target_device = Some(p.clone());
+                    self.target_device = Some(p_clone);
 
                     // 4. 如果有指令，立即执行写入 (即连即发)
                     if !command_hex.is_empty() {
                         println!("⚡ 检测到即时指令，准备发送...");
-                        self.send_hex_command(&p, &c, command_hex).await?;
+                        self.send_hex_command(&p_clone, &c, command_hex).await?;
                         return Ok(format!("已连接并发送指令: {}", command_hex));
                     }
 
