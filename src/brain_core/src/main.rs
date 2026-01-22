@@ -6,6 +6,7 @@ use r2r::robot_interfaces::srv::{AskLLM, ConnectBluetooth};
 use r2r::robot_interfaces::msg::{AudioSpeech, FaceEmotion, VisionResult};
 use r2r::std_msgs::msg::String as StringMsg;
 use futures::StreamExt;
+use futures::executor::block_on;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex};
@@ -356,16 +357,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             command: cmd_clone
                         };
 
-                        // 同步调用
-                        let (success, message) = match client.request(&req) {
-                            Ok(future) => {
-                                match future.wait() {
-                                    Ok(resp) => (resp.success, resp.message),
-                                    Err(e) => (false, format!("ROS Call Error: {}", e)),
+                        // 使用 block_on 在 std::thread 中执行 async 操作
+                        let (success, message) = block_on(async {
+                            match client.request(&req) {
+                                Ok(future) => {
+                                    match future.await {
+                                        Ok(resp) => (resp.success, resp.message),
+                                        Err(e) => (false, format!("ROS Call Error: {}", e)),
+                                    }
                                 }
+                                Err(e) => (false, format!("Client Request Error: {}", e)),
                             }
-                            Err(e) => (false, format!("Client Request Error: {}", e)),
-                        };
+                        });
 
                         let _ = result_tx.send((success, message));
                     });
