@@ -169,12 +169,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     println!("👁️ 锁定目标: {} (CMD: {:?})", payload.m, payload.d);
 
+                    // 保存 command 供后续使用 (clone 避免所有权移动)
+                    let command = payload.d.clone().unwrap_or_default();
+
                     bt_lifecycle = BtLifecycle::Connecting {
                         target_mac: payload.m.clone(),
-                        command: payload.d.unwrap_or_default(),
+                        command: command.clone(),
                         start_time: Instant::now()
                     };
-                    
+
                     // 设置忙碌，防止语音打断
                     state_manager.set_busy("Bluetooth Connecting");
                     emotion_manager.set_happy();
@@ -189,15 +192,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let mac = payload.m.clone();
                     let service = payload.s.unwrap_or_default();
                     let characteristic = payload.c.unwrap_or_default();
-                    let command = payload.d.unwrap_or_default();
 
                     tokio::spawn(async move {
                         // 构造请求
-                        let req = ConnectBluetooth::Request { 
+                        let req = ConnectBluetooth::Request {
                             mac,
                             service_uuid: service,
                             characteristic_uuid: characteristic,
-                            command 
+                            command
                         };
 
                         // 🟢 [修复点] 先处理 request() 的 Result，拿到 future 再 await
@@ -215,7 +217,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 BrainEvent::ConnectionResult { success: false, message: format!("Client Request Error: {}", e) }
                             }
                         };
-                        
+
                         let _ = response_tx.send(evt).await;
                     });
                 }
@@ -223,10 +225,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // [事件 2] 连接结果返回
             BrainEvent::ConnectionResult { success, message } => {
-                if let BtLifecycle::Connecting { target_mac, command, .. } = &bt_lifecycle {
-                    if success {
+                // 使用 match 避免借用冲突
+                match &bt_lifecycle {
+                    BtLifecycle::Connecting { target_mac, command, .. } if success => {
                         println!("✅ 操作成功: {}", message);
                         last_connected_mac = target_mac.clone();
+
+                        // 先 drop 借用，再赋值
+                        drop(target_mac);
+                        drop(command);
+
                         bt_lifecycle = BtLifecycle::Connected { device_name: "Unknown".into() };
                         let _ = tts_publisher.publish(&StringMsg { data: "指令已发送".to_string() });
 
@@ -235,8 +243,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             device_name: target_mac.clone(),
                             command: command.clone()
                         }).await;
-                    } else {
+                    }
+                    BtLifecycle::Connecting { target_mac, .. } => {
                         println!("❌ 操作失败: {}", message);
+                        last_connected_mac = target_mac.clone();
+
                         bt_lifecycle = BtLifecycle::Failed {
                             reason: message.clone(),
                             cooldown_until: Instant::now() + Duration::from_secs(5)
@@ -246,6 +257,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         state_manager.set_idle();
                         emotion_manager.set_neutral();
                     }
+                    _ => {}
                 }
             }
 
