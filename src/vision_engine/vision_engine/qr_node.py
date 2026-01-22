@@ -103,7 +103,7 @@ class QRNode(Node):
                         full_msg = {
                             "t": "ble",
                             "mac": self.restore_mac(obj.get("m", "")),
-                            "cmd": obj.get("c", "")
+                            "d": obj.get("c", "")
                         }
                         full_json = json.dumps(full_msg)
                         self.publish_result(full_json)

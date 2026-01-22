@@ -68,8 +68,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         while let Some(msg) = emotion_sub.next().await {
             // 收到 ROS 表情指令 -> 发送给串口
             match msg.emotion.as_str() {
-                "happy" => sender_1("h"),
-                _ => sender_1("n"), // 默认恢复中性
+                "happy" => sender_1("h"),     // 开心
+                "busy" => sender_1("b"),      // 忙碌
+                "idle" | "neutral" => sender_1("n"), // 中性/空闲
+                "thinking" => sender_1("t"),  // 思考
+                "speaking" => sender_1("l"),  // 说话
+                _ => sender_1("n"),           // 默认中性
             }
         }
     });

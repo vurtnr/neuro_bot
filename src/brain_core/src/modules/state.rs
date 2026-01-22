@@ -26,7 +26,17 @@ impl StateManager {
     pub fn set_listening(&self) { self.publish_state(1, "LISTENING", "Waiting for speech"); }
     pub fn set_thinking(&self) { self.publish_state(2, "THINKING", "Processing"); }
     pub fn set_speaking(&self) { self.publish_state(3, "SPEAKING", "TTS Active"); }
-    
+
+    /// 设置扫描状态 - 用于蓝牙设备扫描阶段
+    pub fn set_scanning(&self) {
+        self.publish_state(4, "SCANNING", "Scanning for BLE device");
+    }
+
+    /// 设置发送指令状态 - 用于蓝牙连接成功后下发指令阶段
+    pub fn set_sending_cmd(&self) {
+        self.publish_state(5, "SENDING_CMD", "Sending command to device");
+    }
+
     // 🟢 [Fix] set_busy 现在真正使用了 reason 参数
     pub fn set_busy(&self, reason: &str) {
         // ID 2 对应非 IDLE 状态，防止打断
@@ -64,24 +74,30 @@ impl StateManager {
 #[derive(Debug, Clone, PartialEq)]
 pub enum BtLifecycle {
     Idle,
-    Connecting { 
-        target_mac: String, 
-        start_time: Instant 
+    Connecting {
+        target_mac: String,
+        command: String,
+        start_time: Instant
     },
-    Connected { 
-        device_name: String 
+    Connected {
+        device_name: String
     },
-    Failed { 
-        reason: String, 
-        cooldown_until: Instant 
+    Failed {
+        reason: String,
+        cooldown_until: Instant
     },
 }
 
 #[derive(Debug)]
 pub enum BrainEvent {
-    VisionTargetFound(NeuralLinkPayload), 
+    VisionTargetFound(NeuralLinkPayload),
     ConnectionResult { success: bool, message: String },
     Heartbeat,
+    // 二维码扫描→蓝牙连接流程的新事件
+    QrCodeScanned { mac: String, command: String },
+    BluetoothConnected { device_name: String, command: String },
+    BluetoothCommandSent,
+    BluetoothFailed { reason: String },
 }
 
 #[derive(Debug, Deserialize, Clone)]
