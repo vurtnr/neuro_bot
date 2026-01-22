@@ -52,9 +52,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let node_for_spin = node.clone();
     tokio::task::spawn(async move {
         loop {
-            node_for_spin.lock().unwrap().spin_once(Duration::from_millis(10));
-            // 让出一点点时间给其他任务
-            tokio::time::sleep(Duration::from_micros(100)).await;
+            node_for_spin.lock().unwrap().spin_once(Duration::from_millis(20));
+            // 让出更多时间给其他任务
+            tokio::time::sleep(Duration::from_millis(5)).await;
         }
     });
 
@@ -64,8 +64,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let emotion_manager_for_vision = emotion_manager.clone();
     let tts_pub_for_vision = tts_publisher.clone();
 
+    // 去重：记录最近处理的消息内容哈希
+    use std::collections::HashSet;
+    use tokio::sync::Mutex;
+    let processed_msgs = Arc::new(Mutex::new(HashSet::new()));
+
+    let processed_for_vision = processed_msgs.clone();
     tokio::task::spawn(async move {
         while let Some(msg) = vision_sub.next().await {
+            // 去重：检查是否已处理过这条消息
+            let msg_hash = format!("{}:{}", msg.type_, msg.content);
+            if processed_for_vision.lock().await.contains(&msg_hash) {
+                // 已经处理过，跳过
+                continue;
+            }
+            processed_for_vision.lock().await.insert(msg_hash);
+
             println!("📥 收到 VisionResult: type={}, content={}", msg.type_, msg.content);
 
             // 尝试解析 JSON
