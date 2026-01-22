@@ -336,47 +336,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         continue;
                     }
 
-                    // 克隆字符串用于状态机保存（避免所有权问题）
-                    let mac_for_state = mac.clone();
-                    let cmd_for_state = command.clone();
-
                     bt_lifecycle = BtLifecycle::Connecting {
-                        target_mac: mac_for_state,
-                        command: cmd_for_state,
+                        target_mac: mac.clone(),
+                        command: command.clone(),
                         start_time: Instant::now()
                     };
 
-                    // 发起蓝牙连接 (异步调用 IoT 服务)
+                    // 使用 std::thread 避免 tokio 与 ROS DDS 的内存冲突
                     let client = bt_client.clone();
-                    let response_tx = tx.clone();
+                    let (result_tx, result_rx) = std::sync::mpsc::channel();
+                    let mac_clone = mac.trim().to_string();
+                    let cmd_clone = command.trim().to_string();
 
-                    // 清理并验证字符串
-                    let mac_for_req = mac.trim().to_string();
-                    let cmd_for_req = command.trim().to_string();
-
-                    tokio::spawn(async move {
+                    std::thread::spawn(move || {
                         let req = ConnectBluetooth::Request {
-                            mac: mac_for_req,
+                            mac: mac_clone,
                             service_uuid: String::new(),
                             characteristic_uuid: String::new(),
-                            command: cmd_for_req
+                            command: cmd_clone
                         };
 
-                        let evt = match client.request(&req) {
+                        // 同步调用
+                        let (success, message) = match client.request(&req) {
                             Ok(future) => {
-                                match time::timeout(Duration::from_secs(15), future).await {
-                                    Ok(Ok(resp)) => BrainEvent::ConnectionResult { success: resp.success, message: resp.message },
-                                    Ok(Err(e)) => BrainEvent::ConnectionResult { success: false, message: format!("ROS Call Error: {}", e) },
-                                    Err(_) => BrainEvent::ConnectionResult { success: false, message: "Timeout".to_string() },
+                                match future.wait() {
+                                    Ok(resp) => (resp.success, resp.message),
+                                    Err(e) => (false, format!("ROS Call Error: {}", e)),
                                 }
                             }
-                            Err(e) => {
-                                BrainEvent::ConnectionResult { success: false, message: format!("Client Request Error: {}", e) }
-                            }
+                            Err(e) => (false, format!("Client Request Error: {}", e)),
                         };
 
-                        let _ = response_tx.send(evt).await;
+                        let _ = result_tx.send((success, message));
                     });
+
+                    // 在主事件循环中处理结果
+                    if let Ok((success, message)) = result_rx.recv_timeout(Duration::from_secs(2)) {
+                        let _ = tx.send(BrainEvent::ConnectionResult { success, message }).await;
+                    } else {
+                        let _ = tx.send(BrainEvent::ConnectionResult {
+                            success: false,
+                            message: "Thread communication timeout".to_string()
+                        }).await;
+                    }
                 }
             }
 
