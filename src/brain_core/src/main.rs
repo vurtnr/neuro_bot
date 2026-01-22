@@ -37,12 +37,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut speech_sub = node.subscribe::<AudioSpeech>("/audio/speech", r2r::QosProfile::default())?;
 
-    // 必须使用 BEST_EFFORT 以匹配 vision_engine 的发布配置
-    let vision_qos = r2r::QosProfile {
-        reliability: r2r::qos::ReliabilityPolicy::BestEffort,
-        ..r2r::QosProfile::default()
-    };
-    let mut vision_sub = node.subscribe::<VisionResult>("/vision/result", vision_qos)?;
+    // 使用 Sensor Data QoS（BestEffort），与 vision_engine 的发布配置匹配
+    let mut vision_sub = node.subscribe::<VisionResult>("/vision/result", r2r::QosProfile::sensor_data())?;
 
     // 3. 建立内部神经通道 (MPSC Channel)
     let (tx, mut rx) = mpsc::channel::<BrainEvent>(32);
