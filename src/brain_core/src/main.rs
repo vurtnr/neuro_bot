@@ -326,9 +326,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let BtLifecycle::Idle = bt_lifecycle {
                     println!("📱 二维码扫描完成: {} (CMD: {})", mac, command);
 
+                    // 防御性检查：验证 MAC 地址格式
+                    let mac_clean = mac.replace(":", "");
+                    if mac_clean.len() != 12 {
+                        println!("⚠️ MAC 地址格式错误: {}", mac);
+                        let _ = tts_publisher.publish(&StringMsg { data: "二维码格式错误".to_string() });
+                        emotion_manager.set_neutral();
+                        state_manager.set_idle();
+                        continue;
+                    }
+
+                    // 克隆字符串用于状态机保存（避免所有权问题）
+                    let mac_for_state = mac.clone();
+                    let cmd_for_state = command.clone();
+
                     bt_lifecycle = BtLifecycle::Connecting {
-                        target_mac: mac.clone(),
-                        command: command.clone(),
+                        target_mac: mac_for_state,
+                        command: cmd_for_state,
                         start_time: Instant::now()
                     };
 
@@ -336,12 +350,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let client = bt_client.clone();
                     let response_tx = tx.clone();
 
+                    // 清理并验证字符串
+                    let mac_for_req = mac.trim().to_string();
+                    let cmd_for_req = command.trim().to_string();
+
                     tokio::spawn(async move {
                         let req = ConnectBluetooth::Request {
-                            mac,
+                            mac: mac_for_req,
                             service_uuid: String::new(),
                             characteristic_uuid: String::new(),
-                            command
+                            command: cmd_for_req
                         };
 
                         let evt = match client.request(&req) {
