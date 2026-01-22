@@ -94,14 +94,15 @@ impl BluetoothManager {
                     println!("   属性: {:?}", c.properties);
 
                     self.write_char = Some(c.clone());
-                    self.target_device = Some(p_clone);
-
                     // 4. 如果有指令，立即执行写入 (即连即发)
                     if !command_hex.is_empty() {
                         println!("⚡ 检测到即时指令，准备发送...");
                         self.send_hex_command(&p_clone, &c, command_hex).await?;
+                        // 保存设备供后续使用
+                        self.target_device = Some(p_clone);
                         return Ok(format!("已连接并发送指令: {}", command_hex));
                     }
+                    self.target_device = Some(p_clone);
 
                     return Ok("已连接 (无指令发送)".to_string());
                 } else {
