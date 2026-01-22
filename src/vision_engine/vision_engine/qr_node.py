@@ -28,7 +28,7 @@ class QRNode(Node):
 
         self.subscription = self.create_subscription(
             Image,
-            '/camera/image_raw', 
+            '/camera_driver/image_raw',
             self.listener_callback,
             qos_profile)
             
