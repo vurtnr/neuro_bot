@@ -225,26 +225,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // [事件 2] 连接结果返回
             BrainEvent::ConnectionResult { success, message } => {
-                // 使用 match 避免借用冲突
-                match &bt_lifecycle {
-                    BtLifecycle::Connecting { target_mac, command, .. } if success => {
-                        println!("✅ 操作成功: {}", message);
-                        last_connected_mac = target_mac.clone();
-
-                        // 先 drop 借用，再赋值
-                        drop(target_mac);
-                        drop(command);
+                // 先检查是否是 Connecting 状态，并提取数据
+                if let BtLifecycle::Connecting { target_mac, command, .. } = &bt_lifecycle {
+                    if success {
+                        // 连接成功：克隆数据后修改状态
+                        let mac = target_mac.clone();
+                        let cmd = command.clone();
 
                         bt_lifecycle = BtLifecycle::Connected { device_name: "Unknown".into() };
                         let _ = tts_publisher.publish(&StringMsg { data: "指令已发送".to_string() });
 
-                        // 触发 BluetoothConnected 事件，启动下发指令流程
+                        // 触发 BluetoothConnected 事件
                         let _ = tx.send(BrainEvent::BluetoothConnected {
-                            device_name: target_mac.clone(),
-                            command: command.clone()
+                            device_name: mac.clone(),
+                            command: cmd
                         }).await;
-                    }
-                    BtLifecycle::Connecting { target_mac, .. } => {
+                    } else {
+                        // 连接失败：修改状态
                         println!("❌ 操作失败: {}", message);
                         last_connected_mac = target_mac.clone();
 
@@ -253,11 +250,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             cooldown_until: Instant::now() + Duration::from_secs(5)
                         };
                         let _ = tts_publisher.publish(&StringMsg { data: "连接失败".to_string() });
-                        // 恢复空闲
                         state_manager.set_idle();
                         emotion_manager.set_neutral();
                     }
-                    _ => {}
                 }
             }
 
