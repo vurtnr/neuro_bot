@@ -60,9 +60,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- 任务 B: 视觉感知 (Producer) ---
     // 负责解析 Neural Link 协议
-    let vision_tx = tx.clone();
     let emotion_manager_for_vision = emotion_manager.clone();
     let tts_pub_for_vision = tts_publisher.clone();
+    let state_manager_for_vision = state_manager.clone();
+    let bt_client_for_vision = bt_client.clone();
+    let vision_tx = tx.clone();
 
     // 去重：记录最近处理的消息内容哈希
     use std::collections::HashSet;
@@ -75,7 +77,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // 去重：检查是否已处理过这条消息
             let msg_hash = format!("{}:{}", msg.type_, msg.content);
             if processed_for_vision.lock().await.contains(&msg_hash) {
-                // 已经处理过，跳过
                 continue;
             }
             processed_for_vision.lock().await.insert(msg_hash);
@@ -88,19 +89,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("✅ JSON 解析成功: t={}", payload.t);
                     if payload.t == "ble" {
                         // 验证 MAC 地址长度
-                        // 如果已经是带冒号格式（17字符），直接使用
-                        // 否则应该是无冒号格式（12字符）
                         if payload.m.len() != 12 && payload.m.len() != 17 {
                             r2r::log_warn!("brain_core", "Invalid MAC address length: {}", payload.m.len());
                             continue;
                         }
 
-                        // 解析 MAC 地址并格式化
+                        // 解析 MAC 地址 - 完全独立的新字符串
                         let mac = if payload.m.contains(':') {
-                            // 已经有冒号，直接使用
                             payload.m.clone()
                         } else {
-                            // 无冒号，添加冒号格式化
                             format!(
                                 "{}:{}:{}:{}:{}:{}",
                                 &payload.m[0..2], &payload.m[2..4],
@@ -108,17 +105,65 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 &payload.m[8..10], &payload.m[10..12]
                             )
                         };
+                        let command = payload.d.unwrap_or_default();
 
                         // 1. 播报语音
                         let _ = tts_pub_for_vision.publish(&StringMsg { data: String::from("已识别出二维码中的 MAC 地址，正在连接蓝牙设备") });
 
                         // 2. 切换表情为 BUSY
                         emotion_manager_for_vision.set_busy();
+                        state_manager_for_vision.set_busy("Bluetooth Connecting");
 
-                        // 3. 发送事件到状态机
-                        let command = payload.d.unwrap_or_default();
-                        println!("📤 发送 QrCodeScanned 事件: mac={}, cmd={}", mac, command);
-                        let _ = vision_tx.send(BrainEvent::QrCodeScanned { mac, command }).await;
+                        // 3. 直接发起蓝牙连接（避免事件传递字符串）
+                        println!("🔄 发起蓝牙连接请求...");
+                        let req = ConnectBluetooth::Request {
+                            mac: mac.clone(),
+                            service_uuid: String::new(),
+                            characteristic_uuid: String::new(),
+                            command: command.clone()
+                        };
+
+                        match bt_client_for_vision.request(&req) {
+                            Ok(future) => {
+                                match time::timeout(Duration::from_secs(15), future).await {
+                                    Ok(Ok(resp)) => {
+                                        println!("📨 连接结果: success={}, message={}", resp.success, resp.message);
+                                        if resp.success {
+                                            emotion_manager_for_vision.set_happy();
+                                            let _ = tts_pub_for_vision.publish(&StringMsg { data: String::from("蓝牙设备已连接，并下发查询指令") });
+                                        } else {
+                                            emotion_manager_for_vision.set_neutral();
+                                            let _ = tts_pub_for_vision.publish(&StringMsg { data: String::from("连接失败") });
+                                        }
+                                    }
+                                    Ok(Err(e)) => {
+                                        println!("❌ ROS Call Error: {}", e);
+                                        emotion_manager_for_vision.set_neutral();
+                                        let _ = tts_pub_for_vision.publish(&StringMsg { data: String::from("连接失败") });
+                                    }
+                                    Err(_) => {
+                                        println!("❌ Timeout");
+                                        emotion_manager_for_vision.set_neutral();
+                                        let _ = tts_pub_for_vision.publish(&StringMsg { data: String::from("连接超时") });
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                println!("❌ Client Request Error: {}", e);
+                                emotion_manager_for_vision.set_neutral();
+                                let _ = tts_pub_for_vision.publish(&StringMsg { data: String::from("连接失败") });
+                            }
+                        }
+
+                        // 恢复 IDLE
+                        emotion_manager_for_vision.set_idle();
+                        state_manager_for_vision.set_idle();
+
+                        // 发送结果事件
+                        let _ = vision_tx.send(BrainEvent::ConnectionResult {
+                            success: true,
+                            message: "Completed".to_string()
+                        }).await;
                     }
                 }
                 Err(e) => {
@@ -321,50 +366,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            // [新事件 4] 二维码扫描完成，准备连接蓝牙
-            BrainEvent::QrCodeScanned { mac, command } => {
-                if let BtLifecycle::Idle = bt_lifecycle {
-                    println!("📱 二维码扫描完成: {} (CMD: {})", mac, command);
-
-                    // 防御性检查：验证 MAC 地址格式
-                    let mac_clean = mac.replace(":", "");
-                    if mac_clean.len() != 12 {
-                        println!("⚠️ MAC 地址格式错误: {}", mac);
-                        let _ = tts_publisher.publish(&StringMsg { data: "二维码格式错误".to_string() });
-                        emotion_manager.set_neutral();
-                        state_manager.set_idle();
-                        continue;
-                    }
-
-                    bt_lifecycle = BtLifecycle::Connecting {
-                        target_mac: mac.clone(),
-                        command: command.clone(),
-                        start_time: Instant::now()
-                    };
-
-                    // 准备请求 - 确保字符串完全独立
-                    let req = ConnectBluetooth::Request {
-                        mac: mac.trim().to_string(),
-                        service_uuid: String::new(),
-                        characteristic_uuid: String::new(),
-                        command: command.trim().to_string()
-                    };
-
-                    // 直接在主线程同步调用（不创建新任务）
-                    println!("🔄 发起蓝牙连接请求...");
-                    let (success, message) = match bt_client.request(&req) {
-                        Ok(future) => {
-                            match time::timeout(Duration::from_secs(15), future).await {
-                                Ok(Ok(resp)) => (resp.success, resp.message),
-                                Ok(Err(e)) => (false, format!("ROS Call Error: {}", e)),
-                                Err(_) => (false, "Timeout".to_string()),
-                            }
-                        }
-                        Err(e) => (false, format!("Client Request Error: {}", e)),
-                    };
-
-                    println!("📨 连接结果: success={}, message={}", success, message);
-                    let _ = tx.send(BrainEvent::ConnectionResult { success, message }).await;
+            // [事件 4] 蓝牙连接结果（来自 vision 任务的直接调用）
+            BrainEvent::ConnectionResult { success, message } => {
+                println!("📨 连接结果: success={}, message={}", success, message);
+                if success {
+                    bt_lifecycle = BtLifecycle::Connected { device_name: "Unknown".into() };
+                } else {
+                    bt_lifecycle = BtLifecycle::Idle;
                 }
             }
 
