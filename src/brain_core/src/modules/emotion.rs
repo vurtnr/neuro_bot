@@ -33,6 +33,16 @@ impl EmotionManager {
         self.publish("listening");
     }
 
+    // 新增：忙碌状态
+    pub fn set_busy(&self) {
+        self.publish("busy");
+    }
+
+    // 新增：空闲状态
+    pub fn set_idle(&self) {
+        self.publish("idle");
+    }
+
     fn publish(&self, emotion_str: &str) {
         let mut msg = FaceEmotion::default();
         msg.emotion = emotion_str.to_string();

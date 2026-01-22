@@ -79,9 +79,14 @@ pub enum BtLifecycle {
 
 #[derive(Debug)]
 pub enum BrainEvent {
-    VisionTargetFound(NeuralLinkPayload), 
+    VisionTargetFound(NeuralLinkPayload),
     ConnectionResult { success: bool, message: String },
     Heartbeat,
+    // 二维码扫描→蓝牙连接流程的新事件
+    QrCodeScanned { mac: String, command: String },
+    BluetoothConnected { device_name: String, command: String },
+    BluetoothCommandSent,
+    BluetoothFailed { reason: String },
 }
 
 #[derive(Debug, Deserialize, Clone)]
