@@ -416,6 +416,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 state_manager.set_idle();
                 bt_lifecycle = BtLifecycle::Idle;
             }
+
+            // 不再使用的事件（保留以兼容）
+            BrainEvent::QrCodeScanned { .. } => {}
+            BrainEvent::VisionTargetFound(_) => {}
         }
     }
 
