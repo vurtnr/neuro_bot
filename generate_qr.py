@@ -1,4 +1,13 @@
+import json
+import qrcode
 import struct
+
+# ---------------------------------------------------------
+# 1. 协议定义 (极简模式)
+# ---------------------------------------------------------
+# 原格式: {"t": "ble", "mac": "D6:65:...", "cmd": "0A03..."} (太长，密度大)
+# 新格式: {"t": "b",   "m": "D665...",     "c": "0A03..."}   (短小，好识别)
+# ---------------------------------------------------------
 
 def calc_crc16_modbus(data: bytearray) -> int:
     crc = 0xFFFF
@@ -10,45 +19,46 @@ def calc_crc16_modbus(data: bytearray) -> int:
                 crc ^= 0xA001
             else:
                 crc >>= 1
-    # 注意：Modbus 协议通常是低字节在前 (Low Byte First)
-    # 但在 JSON hex 字符串中，我们通常按顺序写。
-    # 根据你的文档 "CRC-16 低前高后"，意味着最后两个字节，先发低位，再发高位。
     return crc
 
 def generate_tcu_command(tcu_address, cmd_type=0x03):
-    # 构造基础帧: Address + Command + Reserved(3 bytes) + Length
-    # 示例: 0A 03 00 00 00 25
+    # 构造 Modbus 指令: Address + Cmd + ... + CRC
     payload = bytearray([tcu_address, cmd_type, 0x00, 0x00, 0x00, 0x25])
-    
-    # 计算 CRC
     crc = calc_crc16_modbus(payload)
-    
-    # 拼接 CRC (低位在前)
-    payload.append(crc & 0xFF)        # Low
-    payload.append((crc >> 8) & 0xFF) # High
-    
+    payload.append(crc & 0xFF)
+    payload.append((crc >> 8) & 0xFF)
     return payload.hex().upper()
 
-# --- 配置你的设备参数 ---
-TCU_ADDRESS = 10  # 0x0A
-MAC_ADDRESS = "D6:65:62:A0:AD:E5" # 替换为真实 MAC
-SERVICE_UUID = "0000FFF0-0000-1000-8000-00805F9B34FB" # 替换为真实 UUID
-CHAR_UUID    = "0000FFF2-0000-1000-8000-00805F9B34FB" # 替换为真实 UUID
+# --- 配置参数 ---
+TCU_ADDRESS = 10 
+MAC_ADDRESS = "D6:65:62:00:2A:7E" # 请替换为您实际的 MAC
 
-# 生成指令
-hex_cmd = generate_tcu_command(TCU_ADDRESS)
+# 1. 生成指令
+cmd_hex = generate_tcu_command(TCU_ADDRESS)
 
-# 生成 JSON
-import json
-qr_content = {
-    "t": "ble",
-    "m": MAC_ADDRESS,
-    "s": SERVICE_UUID,
-    "c": CHAR_UUID,
-    "d": hex_cmd, # 自动带上了 CRC
-    "n": "TCU_Device_10"
+# 2. 组装极简数据包
+# 去掉冒号，节省 5 个字符
+mac_clean = MAC_ADDRESS.replace(":", "") 
+
+minified_data = {
+    "t": "b",        # b 代表 ble
+    "m": mac_clean,  # m 代表 mac
+    "c": cmd_hex     # c 代表 cmd
 }
 
-print("✅ 请使用以下内容生成二维码:")
-print(json.dumps(qr_content, separators=(',', ':')))
-print(f"\n(生成的 Hex 指令为: {hex_cmd})")
+json_str = json.dumps(minified_data, separators=(',', ':')) # 去掉空格，极致压缩
+print(f"原始数据: {json_str}")
+
+# 3. 生成二维码
+qr = qrcode.QRCode(
+    version=None, # 自动选择最小版本
+    error_correction=qrcode.constants.ERROR_CORRECT_L, # 使用最低容错 (L)，进一步减少黑块数量，适合清晰环境
+    box_size=10,
+    border=4,
+)
+qr.add_data(json_str)
+qr.make(fit=True)
+
+img = qr.make_image(fill_color="black", back_color="white")
+img.save("robot_qr_lite.png")
+print("✅ 已生成 robot_qr_lite.png，请扫描此图！")

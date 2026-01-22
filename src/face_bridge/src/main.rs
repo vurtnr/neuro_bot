@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     thread::spawn(move || {
         // ⚠️ 注意：请根据您的实际情况修改端口号
         // 常见的是 "/dev/ttyUSB0" 或 "/dev/ttyACM0"
-        let port_name = "/dev/ttyUSB0"; 
+        let port_name = "/dev/ttyACM0"; 
         let baud_rate = 115200;
 
         println!("🔌 Attempting to open Serial Port: {} @ {}", port_name, baud_rate);

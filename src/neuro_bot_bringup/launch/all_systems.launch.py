@@ -18,6 +18,15 @@ def generate_launch_description():
             parameters=[{'width': 640}, {'height': 480}]
         ),
         
+        # 🟢 [新增] Web 视频服务器 (调试神器)
+        # 启动后访问 http://<机器人IP>:8080 查看实时画面
+        Node(
+            package='web_video_server',
+            executable='web_video_server',
+            name='web_video_server',
+            output='screen'
+        ),
+        
         # IoT 控制器 (四肢: 蓝牙/电机)
         Node(
             package='iot_controller',
@@ -54,10 +63,10 @@ def generate_launch_description():
                     name='audio_engine',
                     output='screen'
                 ),
-                # LLM 引擎 (知识库/对话) - 新增
+                # LLM 引擎 (知识库/对话)
                 Node(
                     package='llm_engine', 
-                    executable='llm_node', # 假设你的入口点叫 llm_service
+                    executable='llm_node',
                     name='llm_engine',
                     output='screen'
                 ),
