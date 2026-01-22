@@ -44,6 +44,8 @@ class QRNode(Node):
             self.get_logger().warn('⚠️ 警告: 未检测到 pyzbar，将使用 OpenCV (识别率较低)')
             self.detector = cv2.QRCodeDetector()
 
+        self.get_logger().info(f'🔌 已订阅话题: /camera/image_raw')
+
     def restore_mac(self, compact_mac):
         """将 D66562... 还原为 D6:65:62..."""
         if len(compact_mac) == 12:
