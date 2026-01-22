@@ -6,7 +6,6 @@ use r2r::robot_interfaces::srv::{AskLLM, ConnectBluetooth};
 use r2r::robot_interfaces::msg::{AudioSpeech, FaceEmotion, VisionResult};
 use r2r::std_msgs::msg::String as StringMsg;
 use futures::StreamExt;
-use futures::executor::block_on;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex};
@@ -343,45 +342,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         start_time: Instant::now()
                     };
 
-                    // 使用 std::thread 避免 tokio 与 ROS DDS 的内存冲突
-                    let client = bt_client.clone();
-                    let (result_tx, result_rx) = std::sync::mpsc::channel();
-                    let mac_clone = mac.trim().to_string();
-                    let cmd_clone = command.trim().to_string();
+                    // 准备请求 - 确保字符串完全独立
+                    let req = ConnectBluetooth::Request {
+                        mac: mac.trim().to_string(),
+                        service_uuid: String::new(),
+                        characteristic_uuid: String::new(),
+                        command: command.trim().to_string()
+                    };
 
-                    std::thread::spawn(move || {
-                        let req = ConnectBluetooth::Request {
-                            mac: mac_clone,
-                            service_uuid: String::new(),
-                            characteristic_uuid: String::new(),
-                            command: cmd_clone
-                        };
-
-                        // 使用 block_on 在 std::thread 中执行 async 操作
-                        let (success, message) = block_on(async {
-                            match client.request(&req) {
-                                Ok(future) => {
-                                    match future.await {
-                                        Ok(resp) => (resp.success, resp.message),
-                                        Err(e) => (false, format!("ROS Call Error: {}", e)),
-                                    }
-                                }
-                                Err(e) => (false, format!("Client Request Error: {}", e)),
+                    // 直接在主线程同步调用（不创建新任务）
+                    println!("🔄 发起蓝牙连接请求...");
+                    let (success, message) = match bt_client.request(&req) {
+                        Ok(future) => {
+                            match time::timeout(Duration::from_secs(15), future).await {
+                                Ok(Ok(resp)) => (resp.success, resp.message),
+                                Ok(Err(e)) => (false, format!("ROS Call Error: {}", e)),
+                                Err(_) => (false, "Timeout".to_string()),
                             }
-                        });
+                        }
+                        Err(e) => (false, format!("Client Request Error: {}", e)),
+                    };
 
-                        let _ = result_tx.send((success, message));
-                    });
-
-                    // 在主事件循环中处理结果
-                    if let Ok((success, message)) = result_rx.recv_timeout(Duration::from_secs(2)) {
-                        let _ = tx.send(BrainEvent::ConnectionResult { success, message }).await;
-                    } else {
-                        let _ = tx.send(BrainEvent::ConnectionResult {
-                            success: false,
-                            message: "Thread communication timeout".to_string()
-                        }).await;
-                    }
+                    println!("📨 连接结果: success={}, message={}", success, message);
+                    let _ = tx.send(BrainEvent::ConnectionResult { success, message }).await;
                 }
             }
 
