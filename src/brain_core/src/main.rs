@@ -54,32 +54,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tokio::task::spawn(async move {
         while let Some(msg) = vision_sub.next().await {
+            println!("📥 收到 VisionResult: type={}, content={}", msg.type_, msg.content);
+
             // 尝试解析 JSON
-            if let Ok(payload) = serde_json::from_str::<NeuralLinkPayload>(&msg.content) {
-                if payload.t == "ble" {
-                    // 验证 MAC 地址长度
-                    if payload.m.len() < 12 {
-                        r2r::log_warn!("brain_core", "Invalid MAC address length: {}", payload.m.len());
-                        continue;
+            match serde_json::from_str::<NeuralLinkPayload>(&msg.content) {
+                Ok(payload) => {
+                    println!("✅ JSON 解析成功: t={}", payload.t);
+                    if payload.t == "ble" {
+                        // 验证 MAC 地址长度
+                        if payload.m.len() < 12 {
+                            r2r::log_warn!("brain_core", "Invalid MAC address length: {}", payload.m.len());
+                            continue;
+                        }
+
+                        // 解析 MAC 地址并格式化
+                        let mac = format!(
+                            "{}:{}:{}:{}:{}:{}",
+                            &payload.m[0..2], &payload.m[2..4],
+                            &payload.m[4..6], &payload.m[6..8],
+                            &payload.m[8..10], &payload.m[10..12]
+                        );
+
+                        // 1. 播报语音
+                        let _ = tts_pub_for_vision.publish(&StringMsg { data: String::from("已识别出二维码中的 MAC 地址，正在连接蓝牙设备") });
+
+                        // 2. 切换表情为 BUSY
+                        emotion_manager_for_vision.set_busy();
+
+                        // 3. 发送事件到状态机
+                        let command = payload.d.unwrap_or_default();
+                        println!("📤 发送 QrCodeScanned 事件: mac={}, cmd={}", mac, command);
+                        let _ = vision_tx.send(BrainEvent::QrCodeScanned { mac, command }).await;
                     }
-
-                    // 解析 MAC 地址并格式化
-                    let mac = format!(
-                        "{}:{}:{}:{}:{}:{}",
-                        &payload.m[0..2], &payload.m[2..4],
-                        &payload.m[4..6], &payload.m[6..8],
-                        &payload.m[8..10], &payload.m[10..12]
-                    );
-
-                    // 1. 播报语音
-                    let _ = tts_pub_for_vision.publish(&StringMsg { data: String::from("已识别出二维码中的 MAC 地址，正在连接蓝牙设备") });
-
-                    // 2. 切换表情为 BUSY
-                    emotion_manager_for_vision.set_busy();
-
-                    // 3. 发送事件到状态机
-                    let command = payload.d.unwrap_or_default();
-                    let _ = vision_tx.send(BrainEvent::QrCodeScanned { mac, command }).await;
+                }
+                Err(e) => {
+                    println!("❌ JSON 解析失败: {}", e);
                 }
             }
         }
