@@ -7,6 +7,7 @@ from cv_bridge import CvBridge
 import cv2
 import json
 import numpy as np
+import os
 
 # 尝试导入 pyzbar
 try:
@@ -38,6 +39,16 @@ class QRNode(Node):
         # 调试开关
         self.last_log_time = 0
         self.frame_count = 0
+        self.declare_parameter('debug_log', False)
+        self.declare_parameter('debug_log_every', 60)
+        self.declare_parameter('debug_dump', False)
+        self.declare_parameter('debug_dump_every', 300)
+        self.declare_parameter('debug_dump_dir', '/tmp')
+        self.debug_log = bool(self.get_parameter('debug_log').value)
+        self.debug_log_every = int(self.get_parameter('debug_log_every').value)
+        self.debug_dump = bool(self.get_parameter('debug_dump').value)
+        self.debug_dump_every = int(self.get_parameter('debug_dump_every').value)
+        self.debug_dump_dir = str(self.get_parameter('debug_dump_dir').value)
         
         if PYZBAR_AVAILABLE:
             self.get_logger().info('✅ 视觉引擎就绪 (pyzbar 极速模式)')
@@ -64,6 +75,7 @@ class QRNode(Node):
             enhanced = cv2.equalizeHist(gray)
 
             detected_contents = []
+            objs = []
             
             # --- 核心识别逻辑 ---
             if PYZBAR_AVAILABLE:
@@ -79,6 +91,25 @@ class QRNode(Node):
                         detected_contents.append(data)
                 except Exception:
                     pass
+            
+            if self.debug_log and self.debug_log_every > 0 and self.frame_count % self.debug_log_every == 0:
+                self.get_logger().info(
+                    f'🔎 QR调试: encoding={msg.encoding} size={msg.width}x{msg.height} '
+                    f'pyzbar_objs={len(objs)} decoded={len(detected_contents)}'
+                )
+
+            if self.debug_dump and not detected_contents and self.debug_dump_every > 0:
+                if self.frame_count % self.debug_dump_every == 0:
+                    try:
+                        stamp = self.get_clock().now().to_msg()
+                        ts = f'{stamp.sec}_{stamp.nanosec}'
+                        raw_path = os.path.join(self.debug_dump_dir, f'qr_raw_{ts}.jpg')
+                        enh_path = os.path.join(self.debug_dump_dir, f'qr_enhanced_{ts}.jpg')
+                        cv2.imwrite(raw_path, cv_image)
+                        cv2.imwrite(enh_path, enhanced)
+                        self.get_logger().info(f'🧾 已保存调试帧: {raw_path}, {enh_path}')
+                    except Exception as dump_err:
+                        self.get_logger().warn(f'⚠️ 调试帧保存失败: {dump_err}')
 
             # --- 结果解析与协议转换 ---
             for data in detected_contents:
