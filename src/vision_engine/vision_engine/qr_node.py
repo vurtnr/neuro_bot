@@ -1,88 +1,87 @@
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-from sensor_msgs.msg import Image
-from robot_interfaces.msg import VisionResult
-from cv_bridge import CvBridge
-import cv2
 import json
-import numpy as np
-import os
+
+import cv2
+import rclpy
+from cv_bridge import CvBridge
+from rclpy.node import Node
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
+from robot_interfaces.msg import VisionResult
+from sensor_msgs.msg import Image
+
+from vision_engine.qr_config import resolve_camera_topic
 
 # 尝试导入 pyzbar
 try:
-    from pyzbar.pyzbar import decode, ZBarSymbol
+    from pyzbar.pyzbar import ZBarSymbol, decode
     PYZBAR_AVAILABLE = True
 except ImportError:
     PYZBAR_AVAILABLE = False
 
+
 class QRNode(Node):
     def __init__(self):
         super().__init__('vision_qr_node')
-        
+
         # 必须使用 Best Effort 配合摄像头
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
-            depth=1
+            depth=1,
         )
+
+        self.declare_parameter('image_topic', '/camera/image_raw')
+        image_topic = resolve_camera_topic(self.get_parameter('image_topic').value)
 
         self.subscription = self.create_subscription(
             Image,
-            '/camera/image_raw', 
+            image_topic,
             self.listener_callback,
-            qos_profile)
-            
+            qos_profile,
+        )
+
         self.publisher_ = self.create_publisher(VisionResult, '/vision/result', 10)
         self.bridge = CvBridge()
-        
+
         # 调试开关
         self.last_log_time = 0
         self.frame_count = 0
-        self.declare_parameter('debug_log', False)
-        self.declare_parameter('debug_log_every', 60)
-        self.declare_parameter('debug_dump', False)
-        self.declare_parameter('debug_dump_every', 300)
-        self.declare_parameter('debug_dump_dir', '/tmp')
-        self.debug_log = bool(self.get_parameter('debug_log').value)
-        self.debug_log_every = int(self.get_parameter('debug_log_every').value)
-        self.debug_dump = bool(self.get_parameter('debug_dump').value)
-        self.debug_dump_every = int(self.get_parameter('debug_dump_every').value)
-        self.debug_dump_dir = str(self.get_parameter('debug_dump_dir').value)
-        
+
         if PYZBAR_AVAILABLE:
             self.get_logger().info('✅ 视觉引擎就绪 (pyzbar 极速模式)')
         else:
             self.get_logger().warn('⚠️ 警告: 未检测到 pyzbar，将使用 OpenCV (识别率较低)')
             self.detector = cv2.QRCodeDetector()
 
+        self.get_logger().info(f'📸 订阅图像话题: {image_topic}')
+
     def restore_mac(self, compact_mac):
         """将 D66562... 还原为 D6:65:62..."""
         if len(compact_mac) == 12:
-            return ":".join(compact_mac[i:i+2] for i in range(0, 12, 2))
+            return ':'.join(compact_mac[i:i + 2] for i in range(0, 12, 2))
         return compact_mac
 
     def listener_callback(self, msg):
         self.frame_count += 1
         if self.frame_count % 60 == 0:
-             self.get_logger().info(f'📺 监控中... (分辨率: {msg.width}x{msg.height})')
+            self.get_logger().info(
+                f'📺 监控中... (分辨率: {msg.width}x{msg.height})'
+            )
 
         try:
-            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-            
+            cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+
             # 图像增强: 转灰度 + 直方图均衡化 (对低分辨率极有帮助)
             gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
             enhanced = cv2.equalizeHist(gray)
 
             detected_contents = []
-            objs = []
-            
+
             # --- 核心识别逻辑 ---
             if PYZBAR_AVAILABLE:
                 # 只看二维码，速度更快
                 objs = decode(enhanced, symbols=[ZBarSymbol.QRCODE])
                 for obj in objs:
-                    detected_contents.append(obj.data.decode("utf-8"))
+                    detected_contents.append(obj.data.decode('utf-8'))
             else:
                 # OpenCV 备选方案
                 try:
@@ -91,54 +90,36 @@ class QRNode(Node):
                         detected_contents.append(data)
                 except Exception:
                     pass
-            
-            if self.debug_log and self.debug_log_every > 0 and self.frame_count % self.debug_log_every == 0:
-                self.get_logger().info(
-                    f'🔎 QR调试: encoding={msg.encoding} size={msg.width}x{msg.height} '
-                    f'pyzbar_objs={len(objs)} decoded={len(detected_contents)}'
-                )
-
-            if self.debug_dump and not detected_contents and self.debug_dump_every > 0:
-                if self.frame_count % self.debug_dump_every == 0:
-                    try:
-                        stamp = self.get_clock().now().to_msg()
-                        ts = f'{stamp.sec}_{stamp.nanosec}'
-                        raw_path = os.path.join(self.debug_dump_dir, f'qr_raw_{ts}.jpg')
-                        enh_path = os.path.join(self.debug_dump_dir, f'qr_enhanced_{ts}.jpg')
-                        cv2.imwrite(raw_path, cv_image)
-                        cv2.imwrite(enh_path, enhanced)
-                        self.get_logger().info(f'🧾 已保存调试帧: {raw_path}, {enh_path}')
-                    except Exception as dump_err:
-                        self.get_logger().warn(f'⚠️ 调试帧保存失败: {dump_err}')
 
             # --- 结果解析与协议转换 ---
             for data in detected_contents:
-                if not data: continue
-                
+                if not data:
+                    continue
+
                 # 容错：修复单引号
-                if data.startswith("{") and "'" in data:
+                if data.startswith('{') and '\'' in data:
                     data = data.replace("'", '"')
 
                 try:
                     obj = json.loads(data)
-                    
+
                     # 1. 兼容完整协议 {"t": "ble", ...}
-                    if obj.get("t") == "ble":
+                    if obj.get('t') == 'ble':
                         self.publish_result(data)
-                        
+
                     # 2. 🟢 兼容极简协议 {"t": "b", ...} -> 自动转回完整版
-                    elif obj.get("t") == "b":
+                    elif obj.get('t') == 'b':
                         self.get_logger().info(f'⚡️ 捕获极简指令: {data}')
-                        
+
                         # 还原完整结构，让 brain_core 无感
                         full_msg = {
-                            "t": "ble",
-                            "mac": self.restore_mac(obj.get("m", "")),
-                            "cmd": obj.get("c", "")
+                            't': 'ble',
+                            'mac': self.restore_mac(obj.get('m', '')),
+                            'cmd': obj.get('c', ''),
                         }
                         full_json = json.dumps(full_msg)
                         self.publish_result(full_json)
-                        
+
                 except json.JSONDecodeError:
                     pass
 
@@ -148,10 +129,11 @@ class QRNode(Node):
     def publish_result(self, content_str):
         self.get_logger().info(f'🚀 发送控制指令: {content_str}')
         msg = VisionResult()
-        msg.type = "ble"
+        msg.type = 'ble'
         msg.content = content_str
         msg.distance = 0.5
         self.publisher_.publish(msg)
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -159,6 +141,7 @@ def main(args=None):
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
