@@ -112,113 +112,115 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut bt_lifecycle = BtLifecycle::Idle;
     let mut last_connected_mac = String::new(); 
 
-    // 主循环：处理所有事件
-    while let Some(event) = rx.recv().await {
-        match event {
-            // [事件 1] 视觉发现目标
-            BrainEvent::VisionTargetFound(payload) => {
-                // 只有在空闲且非重复时才响应
-                if let BtLifecycle::Idle = bt_lifecycle {
-                    if payload.m == last_connected_mac { continue; } 
-                    
-                    println!("👁️ 锁定目标: {} (CMD: {:?})", payload.m, payload.d);
-                    
-                    bt_lifecycle = BtLifecycle::Connecting { 
-                        target_mac: payload.m.clone(), 
-                        start_time: Instant::now() 
-                    };
-                    
-                    // 设置忙碌，防止语音打断
-                    state_manager.set_busy("Bluetooth Connecting");
-                    emotion_manager.set_happy();
-
-                    // 语音播报
-                    let device_name = payload.n.unwrap_or("蓝牙设备".to_string());
-                    let _ = tts_publisher.publish(&StringMsg { data: format!("正在连接{}", device_name) });
-
-                    // 发起连接 (异步调用 IoT 服务)
-                    let client = bt_client.clone();
-                    let response_tx = tx.clone();
-                    let mac = payload.m.clone();
-                    let service = payload.s.unwrap_or_default();
-                    let characteristic = payload.c.unwrap_or_default();
-                    let command = payload.d.unwrap_or_default();
-
-                    tokio::spawn(async move {
-                        // 构造请求
-                        let req = ConnectBluetooth::Request { 
-                            mac,
-                            service_uuid: service,
-                            characteristic_uuid: characteristic,
-                            command 
-                        };
-
-                        // 🟢 [修复点] 先处理 request() 的 Result，拿到 future 再 await
-                        let evt = match client.request(&req) {
-                            Ok(future) => {
-                                // 请求创建成功，现在开始计时等待结果
-                                match time::timeout(Duration::from_secs(15), future).await {
-                                    Ok(Ok(resp)) => BrainEvent::ConnectionResult { success: resp.success, message: resp.message },
-                                    Ok(Err(e)) => BrainEvent::ConnectionResult { success: false, message: format!("ROS Call Error: {}", e) },
-                                    Err(_) => BrainEvent::ConnectionResult { success: false, message: "Timeout".to_string() },
-                                }
-                            }
-                            Err(e) => {
-                                // 请求连发都没发出去（比如 Service 还没上线）
-                                BrainEvent::ConnectionResult { success: false, message: format!("Client Request Error: {}", e) }
-                            }
+    // 主循环：处理所有事件（独立任务，避免阻塞 spin）
+    tokio::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            match event {
+                // [事件 1] 视觉发现目标
+                BrainEvent::VisionTargetFound(payload) => {
+                    // 只有在空闲且非重复时才响应
+                    if let BtLifecycle::Idle = bt_lifecycle {
+                        if payload.m == last_connected_mac { continue; } 
+                        
+                        println!("👁️ 锁定目标: {} (CMD: {:?})", payload.m, payload.d);
+                        
+                        bt_lifecycle = BtLifecycle::Connecting { 
+                            target_mac: payload.m.clone(), 
+                            start_time: Instant::now() 
                         };
                         
-                        let _ = response_tx.send(evt).await;
-                    });
-                }
-            }
+                        // 设置忙碌，防止语音打断
+                        state_manager.set_busy("Bluetooth Connecting");
+                        emotion_manager.set_happy();
 
-            // [事件 2] 连接结果返回
-            BrainEvent::ConnectionResult { success, message } => {
-                if let BtLifecycle::Connecting { target_mac, .. } = &bt_lifecycle {
-                    if success {
-                        println!("✅ 操作成功: {}", message);
-                        last_connected_mac = target_mac.clone();
-                        bt_lifecycle = BtLifecycle::Connected { device_name: "Unknown".into() };
-                        let _ = tts_publisher.publish(&StringMsg { data: "指令已发送".to_string() });
-                    } else {
-                        println!("❌ 操作失败: {}", message);
-                        bt_lifecycle = BtLifecycle::Failed { 
-                            reason: message.clone(), 
-                            cooldown_until: Instant::now() + Duration::from_secs(5) 
-                        };
-                        let _ = tts_publisher.publish(&StringMsg { data: "连接失败".to_string() });
-                    }
-                    // 恢复空闲
-                    state_manager.set_idle();
-                    emotion_manager.set_neutral();
-                }
-            }
+                        // 语音播报
+                        let device_name = payload.n.unwrap_or("蓝牙设备".to_string());
+                        let _ = tts_publisher.publish(&StringMsg { data: format!("正在连接{}", device_name) });
 
-            // [事件 3] 超时检查
-            BrainEvent::Heartbeat => {
-                match &mut bt_lifecycle {
-                    BtLifecycle::Connecting { start_time, .. } => {
-                        if start_time.elapsed() > Duration::from_secs(20) {
-                            println!("⚠️ 连接超时重置");
-                            bt_lifecycle = BtLifecycle::Failed { 
-                                reason: "Timeout".into(),
-                                cooldown_until: Instant::now() + Duration::from_secs(5)
+                        // 发起连接 (异步调用 IoT 服务)
+                        let client = bt_client.clone();
+                        let response_tx = tx.clone();
+                        let mac = payload.m.clone();
+                        let service = payload.s.unwrap_or_default();
+                        let characteristic = payload.c.unwrap_or_default();
+                        let command = payload.d.unwrap_or_default();
+
+                        tokio::spawn(async move {
+                            // 构造请求
+                            let req = ConnectBluetooth::Request { 
+                                mac,
+                                service_uuid: service,
+                                characteristic_uuid: characteristic,
+                                command 
                             };
-                            state_manager.set_idle();
+
+                            // 🟢 [修复点] 先处理 request() 的 Result，拿到 future 再 await
+                            let evt = match client.request(&req) {
+                                Ok(future) => {
+                                    // 请求创建成功，现在开始计时等待结果
+                                    match time::timeout(Duration::from_secs(15), future).await {
+                                        Ok(Ok(resp)) => BrainEvent::ConnectionResult { success: resp.success, message: resp.message },
+                                        Ok(Err(e)) => BrainEvent::ConnectionResult { success: false, message: format!("ROS Call Error: {}", e) },
+                                        Err(_) => BrainEvent::ConnectionResult { success: false, message: "Timeout".to_string() },
+                                    }
+                                }
+                                Err(e) => {
+                                    // 请求连发都没发出去（比如 Service 还没上线）
+                                    BrainEvent::ConnectionResult { success: false, message: format!("Client Request Error: {}", e) }
+                                }
+                            };
+                            
+                            let _ = response_tx.send(evt).await;
+                        });
+                    }
+                }
+
+                // [事件 2] 连接结果返回
+                BrainEvent::ConnectionResult { success, message } => {
+                    if let BtLifecycle::Connecting { target_mac, .. } = &bt_lifecycle {
+                        if success {
+                            println!("✅ 操作成功: {}", message);
+                            last_connected_mac = target_mac.clone();
+                            bt_lifecycle = BtLifecycle::Connected { device_name: "Unknown".into() };
+                            let _ = tts_publisher.publish(&StringMsg { data: "指令已发送".to_string() });
+                        } else {
+                            println!("❌ 操作失败: {}", message);
+                            bt_lifecycle = BtLifecycle::Failed { 
+                                reason: message.clone(), 
+                                cooldown_until: Instant::now() + Duration::from_secs(5) 
+                            };
+                            let _ = tts_publisher.publish(&StringMsg { data: "连接失败".to_string() });
                         }
-                    },
-                    BtLifecycle::Failed { cooldown_until, .. } => {
-                        if Instant::now() > *cooldown_until {
-                            bt_lifecycle = BtLifecycle::Idle;
-                        }
-                    },
-                    _ => {}
+                        // 恢复空闲
+                        state_manager.set_idle();
+                        emotion_manager.set_neutral();
+                    }
+                }
+
+                // [事件 3] 超时检查
+                BrainEvent::Heartbeat => {
+                    match &mut bt_lifecycle {
+                        BtLifecycle::Connecting { start_time, .. } => {
+                            if start_time.elapsed() > Duration::from_secs(20) {
+                                println!("⚠️ 连接超时重置");
+                                bt_lifecycle = BtLifecycle::Failed { 
+                                    reason: "Timeout".into(),
+                                    cooldown_until: Instant::now() + Duration::from_secs(5)
+                                };
+                                state_manager.set_idle();
+                            }
+                        },
+                        BtLifecycle::Failed { cooldown_until, .. } => {
+                            if Instant::now() > *cooldown_until {
+                                bt_lifecycle = BtLifecycle::Idle;
+                            }
+                        },
+                        _ => {}
+                    }
                 }
             }
         }
-    }
+    });
 
     loop { node.spin_once(Duration::from_millis(100)); }
 }
