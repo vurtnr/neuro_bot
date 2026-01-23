@@ -7,7 +7,7 @@ use r2r::robot_interfaces::srv::{AskLLM, ConnectBluetooth};
 use r2r::robot_interfaces::msg::{AudioSpeech, VisionResult};
 use r2r::std_msgs::msg::String as StringMsg;
 use futures::StreamExt;
-use std::future::Future;
+use std::future::{pending, Future};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -46,10 +46,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         let mut event_to_handle: Option<BrainEvent> = None;
 
-        let has_pending_ble = pending_ble.is_some();
-        let has_pending_llm = pending_llm.is_some();
-        let has_pending_audio_done = pending_audio_done.is_some();
-
         tokio::select! {
             _ = spin_interval.tick() => {
                 node.spin_once(Duration::from_millis(0));
@@ -70,15 +66,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            event = pending_ble.as_mut().unwrap().as_mut(), if has_pending_ble => {
+            event = async {
+                if let Some(fut) = pending_ble.as_mut() {
+                    fut.as_mut().await
+                } else {
+                    pending::<BrainEvent>().await
+                }
+            } => {
                 pending_ble = None;
                 event_to_handle = Some(event);
             }
-            event = pending_llm.as_mut().unwrap().as_mut(), if has_pending_llm => {
+            event = async {
+                if let Some(fut) = pending_llm.as_mut() {
+                    fut.as_mut().await
+                } else {
+                    pending::<BrainEvent>().await
+                }
+            } => {
                 pending_llm = None;
                 event_to_handle = Some(event);
             }
-            _ = pending_audio_done.as_mut().unwrap().as_mut(), if has_pending_audio_done => {
+            _ = async {
+                if let Some(fut) = pending_audio_done.as_mut() {
+                    fut.as_mut().await
+                } else {
+                    pending::<()>().await
+                }
+            } => {
                 pending_audio_done = None;
                 event_to_handle = Some(BrainEvent::AudioDone);
             }
