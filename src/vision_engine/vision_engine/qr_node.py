@@ -1,8 +1,8 @@
 import json
 
 import cv2
-import rclpy
 from cv_bridge import CvBridge
+import rclpy
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from robot_interfaces.msg import VisionResult
@@ -103,8 +103,8 @@ class QRNode(Node):
                     continue
 
                 # 容错：修复单引号
-                if data.startswith('{') and '\'' in data:
-                    data = data.replace('\'', '"')
+                if data.startswith('{') and "'" in data:
+                    data = data.replace("'", '"')
 
                 try:
                     obj = json.loads(data)

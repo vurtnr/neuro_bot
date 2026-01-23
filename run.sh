@@ -20,4 +20,6 @@ fi
 echo -e "${GREEN}==============================================${NC}"
 echo -e "${GREEN}正在启动 NeuroBot 大脑与四肢...${NC}"
 echo -e "${GREEN}==============================================${NC}"
-ros2 launch neuro_bot_bringup all_systems.launch.py
+ros2 launch neuro_bot_bringup all_systems.launch.py \
+    image_topic:=/camera_driver/image_raw \
+    repeat_suppression_frames:=10

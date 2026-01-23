@@ -1,14 +1,24 @@
-import os
 from launch import LaunchDescription
-from launch.actions import TimerAction
+from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
+
 
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'image_topic',
+            default_value='/camera/image_raw',
+        ),
+        DeclareLaunchArgument(
+            'repeat_suppression_frames',
+            default_value='10',
+        ),
         # =========================================
         # 1. 硬件驱动与执行层 (立即启动)
         # =========================================
-        
+
         # 摄像头驱动 (视觉的输入源)
         Node(
             package='camera_ros',
@@ -17,7 +27,7 @@ def generate_launch_description():
             output='screen',
             parameters=[{'width': 640}, {'height': 480}]
         ),
-        
+
         # 🟢 [新增] Web 视频服务器 (调试神器)
         # 启动后访问 http://<机器人IP>:8080 查看实时画面
         Node(
@@ -26,7 +36,6 @@ def generate_launch_description():
             name='web_video_server',
             output='screen'
         ),
-        
         # IoT 控制器 (四肢: 蓝牙/电机)
         Node(
             package='iot_controller',
@@ -47,25 +56,32 @@ def generate_launch_description():
         # 2. 能力服务层 (延迟 3秒)
         # =========================================
         TimerAction(
-            period=3.0, 
+            period=3.0,
             actions=[
                 # 视觉引擎 (识别二维码/人脸)
                 Node(
                     package='vision_engine',
                     executable='qr_node',
                     name='vision_qr_node',
-                    output='screen'
+                    output='screen',
+                    parameters=[{
+                        'image_topic': LaunchConfiguration('image_topic'),
+                        'repeat_suppression_frames': ParameterValue(
+                            LaunchConfiguration('repeat_suppression_frames'),
+                            value_type=int,
+                        ),
+                    }],
                 ),
                 # 语音引擎 (听/说)
                 Node(
-                    package='audio_engine', 
-                    executable='audio_node', 
+                    package='audio_engine',
+                    executable='audio_node',
                     name='audio_engine',
                     output='screen'
                 ),
                 # LLM 引擎 (知识库/对话)
                 Node(
-                    package='llm_engine', 
+                    package='llm_engine',
                     executable='llm_node',
                     name='llm_engine',
                     output='screen'
@@ -77,7 +93,7 @@ def generate_launch_description():
         # 3. 决策控制层 (延迟 6秒，确保服务就绪)
         # =========================================
         TimerAction(
-            period=6.0, 
+            period=6.0,
             actions=[
                 # 核心大脑 (状态机/统筹)
                 Node(
