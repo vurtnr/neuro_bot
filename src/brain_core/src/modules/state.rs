@@ -79,8 +79,11 @@ pub enum BtLifecycle {
 
 #[derive(Debug)]
 pub enum BrainEvent {
-    VisionTargetFound(NeuralLinkPayload), 
-    ConnectionResult { success: bool, message: String },
+    VisionFound(NeuralLinkPayload),
+    BleResult { success: bool, message: String },
+    AudioFinal(String),
+    AudioLlmResult { success: bool, answer: String },
+    AudioDone,
     Heartbeat,
 }
 
