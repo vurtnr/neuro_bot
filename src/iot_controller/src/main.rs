@@ -6,8 +6,9 @@ use r2r::robot_interfaces::srv::ConnectBluetooth;
 use futures::StreamExt;
 use std::sync::{Arc};
 use tokio::sync::Mutex;
+use tokio::time;
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     println!("🤖 IoT Controller (Rust) Starting [Neural Link V1]...");
@@ -27,40 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("🔗 Bluetooth Service Ready. Waiting for Neural Link commands...");
 
-    // ================================================================
-    // 👂 任务 1: 处理连接请求 (Service)
-    // ================================================================
-    let bt_mgr_clone_1 = bt_manager.clone();
-    tokio::spawn(async move {
-        println!("✅ Service Listener Started.");
-        while let Some(req) = connect_service.next().await {
-            let mut mgr = bt_mgr_clone_1.lock().await;
-            
-            // 🟢 [Fix 1] 适配新字段: 从 req.message 中获取 mac, service_uuid, characteristic_uuid, command
-            let target_mac = &req.message.mac;
-            let service_uuid = &req.message.service_uuid;
-            let char_uuid = &req.message.characteristic_uuid;
-            let cmd_hex = &req.message.command;
-
-            println!("📥 收到指令: MAC={} CMD={}", target_mac, cmd_hex);
-            
-            // 🟢 [Fix 2] 调用新的通用执行方法 connect_and_execute
-            let result = mgr.connect_and_execute(target_mac, service_uuid, char_uuid, cmd_hex).await;
-            
-            let (success, msg) = match result {
-                Ok(info) => (true, info),
-                Err(e) => (false, e.to_string()),
-            };
-            
-            println!("🔄 执行结果: {} ({})", success, msg);
-
-            // 回复结果
-            let _ = req.respond(ConnectBluetooth::Response {
-                success,
-                message: msg,
-            });
-        }
-    });
+    println!("✅ Service Listener Started.");
 
     // ================================================================
     // 👂 任务 2: 处理控制指令 (Topic) - 已弃用
@@ -75,7 +43,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     */
 
+    let mut spin_interval = time::interval(std::time::Duration::from_millis(10));
     loop {
-        node.spin_once(std::time::Duration::from_millis(100));
+        tokio::select! {
+            _ = spin_interval.tick() => {
+                node.spin_once(std::time::Duration::from_millis(0));
+            }
+            req = connect_service.next() => {
+                if let Some(req) = req {
+                    let mut mgr = bt_manager.lock().await;
+                    
+                    // 🟢 [Fix 1] 适配新字段: 从 req.message 中获取 mac, service_uuid, characteristic_uuid, command
+                    let target_mac = &req.message.mac;
+                    let service_uuid = &req.message.service_uuid;
+                    let char_uuid = &req.message.characteristic_uuid;
+                    let cmd_hex = &req.message.command;
+
+                    println!("📥 收到指令: MAC={} CMD={}", target_mac, cmd_hex);
+                    
+                    // 🟢 [Fix 2] 调用新的通用执行方法 connect_and_execute
+                    let result = mgr.connect_and_execute(target_mac, service_uuid, char_uuid, cmd_hex).await;
+                    
+                    let (success, msg) = match result {
+                        Ok(info) => (true, info),
+                        Err(e) => (false, e.to_string()),
+                    };
+                    
+                    println!("🔄 执行结果: {} ({})", success, msg);
+
+                    // 回复结果
+                    let _ = req.respond(ConnectBluetooth::Response {
+                        success,
+                        message: msg,
+                    });
+                }
+            }
+        }
     }
 }
