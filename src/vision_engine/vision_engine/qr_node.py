@@ -9,6 +9,7 @@ from robot_interfaces.msg import VisionResult
 from sensor_msgs.msg import Image
 
 from vision_engine.qr_config import resolve_camera_topic
+from vision_engine.qr_dedupe import QrContentDeduper
 
 # 尝试导入 pyzbar
 try:
@@ -30,7 +31,12 @@ class QRNode(Node):
         )
 
         self.declare_parameter('image_topic', '/camera/image_raw')
+        self.declare_parameter('repeat_suppression_frames', 10)
         image_topic = resolve_camera_topic(self.get_parameter('image_topic').value)
+        suppression_frames = int(
+            self.get_parameter('repeat_suppression_frames').value
+        )
+        self.deduper = QrContentDeduper(suppression_frames=suppression_frames)
 
         self.subscription = self.create_subscription(
             Image,
@@ -98,19 +104,18 @@ class QRNode(Node):
 
                 # 容错：修复单引号
                 if data.startswith('{') and '\'' in data:
-                    data = data.replace("'", '"')
+                    data = data.replace('\'', '"')
 
                 try:
                     obj = json.loads(data)
 
                     # 1. 兼容完整协议 {"t": "ble", ...}
                     if obj.get('t') == 'ble':
-                        self.publish_result(data)
+                        if self.deduper.should_publish(data, self.frame_count):
+                            self.publish_result(data)
 
                     # 2. 🟢 兼容极简协议 {"t": "b", ...} -> 自动转回完整版
                     elif obj.get('t') == 'b':
-                        self.get_logger().info(f'⚡️ 捕获极简指令: {data}')
-
                         # 还原完整结构，让 brain_core 无感
                         full_msg = {
                             't': 'ble',
@@ -118,7 +123,9 @@ class QRNode(Node):
                             'cmd': obj.get('c', ''),
                         }
                         full_json = json.dumps(full_msg)
-                        self.publish_result(full_json)
+                        if self.deduper.should_publish(full_json, self.frame_count):
+                            self.get_logger().info(f'⚡️ 捕获极简指令: {data}')
+                            self.publish_result(full_json)
 
                 except json.JSONDecodeError:
                     pass
