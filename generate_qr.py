@@ -2,19 +2,7 @@ import json
 import qrcode
 
 # --- 配置参数 ---
-<<<<<<< HEAD
-TCU_ADDRESS = 10 
-MAC_ADDRESS = "D6:65:62:A0:AD:E5" # 请替换为您实际的 MAC
-
-# 1. 生成指令
-cmd_hex = generate_tcu_command(TCU_ADDRESS)
-
-# 2. 组装极简数据包
-# 去掉冒号，节省 5 个字符
-mac_clean = MAC_ADDRESS.replace(":", "") 
-=======
 MAC_ADDRESS = "D6:65:62:A0:AD:E5"  # 请替换为您实际的 MAC
->>>>>>> 17755e5 (feat: generate mac-only qr)
 
 # 仅生成 MAC 的极简二维码
 mac_clean = MAC_ADDRESS.replace(":", "")
