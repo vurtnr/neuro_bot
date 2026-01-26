@@ -47,6 +47,15 @@ fn normalize_uuid_field(value: Option<String>) -> String {
     }
 }
 
+fn normalize_command_field(value: Option<String>) -> String {
+    let trimmed = value.unwrap_or_default().trim().to_string();
+    if trimmed.is_empty() {
+        "NOOP".to_string()
+    } else {
+        trimmed
+    }
+}
+
 impl Coordinator {
     pub fn new() -> Self {
         Self { mode: Mode::Idle }
@@ -71,7 +80,7 @@ impl Coordinator {
                         mac: payload.m,
                         service_uuid: normalize_uuid_field(payload.s),
                         characteristic_uuid: normalize_uuid_field(payload.c),
-                        command: payload.d.unwrap_or_default(),
+                        command: normalize_command_field(payload.d),
                     }),
                 ]
             }

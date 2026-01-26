@@ -35,6 +35,8 @@ impl BluetoothManager {
             .map(|value| Uuid::parse_str(value).map_err(|_| "Characteristic UUID 格式错误"))
             .transpose()?;
 
+        let command_hex = normalize_command_input(command_hex);
+
         let manager = Manager::new().await?;
         let adapters = manager.adapters().await?;
         let central = adapters.into_iter().nth(0).ok_or("❌ 未找到蓝牙适配器")?;
@@ -139,5 +141,18 @@ fn normalize_uuid_input(value: &str) -> Option<&str> {
         None
     } else {
         Some(trimmed)
+    }
+}
+
+fn normalize_command_input(value: &str) -> &str {
+    let trimmed = value.trim();
+    if trimmed.is_empty()
+        || trimmed.eq_ignore_ascii_case("noop")
+        || trimmed.eq_ignore_ascii_case("none")
+        || trimmed.eq_ignore_ascii_case("auto")
+    {
+        ""
+    } else {
+        trimmed
     }
 }
