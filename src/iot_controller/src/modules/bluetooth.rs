@@ -132,6 +132,86 @@ impl BluetoothManager {
     }
 }
 
+fn crc16_modbus(data: &[u8]) -> u16 {
+    let mut crc: u16 = 0xFFFF;
+    for b in data {
+        crc ^= *b as u16;
+        for _ in 0..8 {
+            if (crc & 1) != 0 {
+                crc >>= 1;
+                crc ^= 0xA001;
+            } else {
+                crc >>= 1;
+            }
+        }
+    }
+    crc
+}
+
+fn build_query_command(tcu_address: u8) -> String {
+    let mut payload = vec![tcu_address, 0x03, 0x00, 0x00, 0x00, 0x25];
+    let crc = crc16_modbus(&payload);
+    payload.push((crc & 0xFF) as u8);
+    payload.push((crc >> 8) as u8);
+    payload
+        .iter()
+        .map(|b| format!("{:02X}", b))
+        .collect::<String>()
+}
+
+fn verify_protocol_checksum(protocol: &[u8]) -> bool {
+    if protocol.len() != 26 {
+        return false;
+    }
+    let checksum = protocol[2] as u16;
+    let sum: u16 = protocol[3..].iter().map(|b| *b as u16).sum();
+    let low = sum & 0xFF;
+    let high = (sum >> 8) & 0xFF;
+    let result = (low + high) & 0xFF;
+    checksum == result
+}
+
+fn key_from_rand(rand0: u8, rand1: u8) -> [u8; 7] {
+    let mut key = [0u8; 7];
+    key[0] = rand0.wrapping_add(rand1);
+    key[1] = rand0 ^ rand1;
+    key[2] = rand0 ^ 0x69;
+    key[3] = key[1];
+    key[4] = rand0 ^ 0x16;
+    key[5] = rand1 ^ 0x58;
+    key[6] = rand0 ^ rand1 ^ 0x69;
+    key
+}
+
+fn parse_tcu_from_protocol(protocol: &[u8]) -> Result<u8, Box<dyn Error>> {
+    if protocol.len() != 26 {
+        return Err("❌ 广播数据长度错误".into());
+    }
+    if protocol[0] != 0x88 || protocol[1] != 0x11 {
+        return Err("❌ 广播头不匹配".into());
+    }
+    if !verify_protocol_checksum(protocol) {
+        return Err("❌ 广播校验失败".into());
+    }
+
+    let rand0 = protocol[3];
+    let rand1 = protocol[4];
+    let key = key_from_rand(rand0, rand1);
+    let encrypted = &protocol[5..26];
+
+    let mut decrypted = [0u8; 21];
+    for i in 0..21 {
+        decrypted[i] = encrypted[i] ^ key[i % 7];
+    }
+
+    let tcu = decrypted[16];
+    if tcu == 0 || tcu > 150 {
+        return Err("❌ TCU 地址非法".into());
+    }
+
+    Ok(tcu)
+}
+
 fn normalize_uuid_input(value: &str) -> Option<&str> {
     let trimmed = value.trim();
     if trimmed.is_empty()
@@ -154,5 +234,47 @@ fn normalize_command_input(value: &str) -> &str {
         ""
     } else {
         trimmed
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_query_command, parse_tcu_from_protocol, verify_protocol_checksum};
+
+    fn valid_protocol_sample() -> [u8; 26] {
+        // Precomputed valid protocol (rand0=0x12, rand1=0x34, tcu=0x0A).
+        [
+            0x88, 0x11, 0x20, 0x12, 0x34, 0x15, 0x68, 0x4B, 0x17, 0x36,
+            0x5F, 0x7B, 0x73, 0x10, 0x4C, 0x1E, 0x3D, 0x2D, 0x0D, 0x05,
+            0x27, 0x71, 0x26, 0x04, 0x6C, 0x4F,
+        ]
+    }
+
+    fn invalid_checksum_sample() -> [u8; 26] {
+        // Example from docs (checksum intentionally invalid)
+        [
+            0x88, 0x11, 0xA7, 0x12, 0x34, 0xE2, 0xC7, 0x83, 0xD7, 0xF0,
+            0x9C, 0x8D, 0xE8, 0xC5, 0x81, 0xD5, 0xF2, 0x9E, 0x8F, 0xE9,
+            0xC7, 0x83, 0xD6, 0x73, 0x06, 0x66,
+        ]
+    }
+
+    #[test]
+    fn checksum_rejects_invalid_data() {
+        let sample = invalid_checksum_sample();
+        assert!(!verify_protocol_checksum(&sample));
+    }
+
+    #[test]
+    fn tcu_parsed_from_protocol() {
+        let sample = valid_protocol_sample();
+        let tcu = parse_tcu_from_protocol(&sample).expect("tcu parse failed");
+        assert_eq!(tcu, 0x0A);
+    }
+
+    #[test]
+    fn query_command_uses_crc16() {
+        let cmd = build_query_command(0x0A);
+        assert_eq!(cmd, "0A0300000025856A");
     }
 }
