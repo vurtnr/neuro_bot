@@ -26,19 +26,14 @@ impl BluetoothManager {
         char_uuid_str: &str,
         command_hex: &str
     ) -> Result<String, Box<dyn Error>> {
-        
-        // 1. 解析传入的 UUID (如果为空则为 None，启用自动发现模式)
-        let target_service_uuid = if service_uuid_str.is_empty() {
-            None 
-        } else {
-            Some(Uuid::parse_str(service_uuid_str).map_err(|_| "Service UUID 格式错误")?)
-        };
+        // 1. 解析传入的 UUID (空/占位符则视为自动发现)
+        let target_service_uuid = normalize_uuid_input(service_uuid_str)
+            .map(|value| Uuid::parse_str(value).map_err(|_| "Service UUID 格式错误"))
+            .transpose()?;
 
-        let target_char_uuid = if char_uuid_str.is_empty() {
-            None
-        } else {
-            Some(Uuid::parse_str(char_uuid_str).map_err(|_| "Characteristic UUID 格式错误")?)
-        };
+        let target_char_uuid = normalize_uuid_input(char_uuid_str)
+            .map(|value| Uuid::parse_str(value).map_err(|_| "Characteristic UUID 格式错误"))
+            .transpose()?;
 
         let manager = Manager::new().await?;
         let adapters = manager.adapters().await?;
@@ -132,5 +127,17 @@ impl BluetoothManager {
             .step_by(2)
             .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).map_err(|e| e.into()))
             .collect()
+    }
+}
+
+fn normalize_uuid_input(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    if trimmed.is_empty()
+        || trimmed.eq_ignore_ascii_case("auto")
+        || trimmed == "00000000-0000-0000-0000-000000000000"
+    {
+        None
+    } else {
+        Some(trimmed)
     }
 }

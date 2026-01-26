@@ -38,6 +38,15 @@ pub struct Coordinator {
     mode: Mode,
 }
 
+fn normalize_uuid_field(value: Option<String>) -> String {
+    let trimmed = value.unwrap_or_default().trim().to_string();
+    if trimmed.is_empty() {
+        "AUTO".to_string()
+    } else {
+        trimmed
+    }
+}
+
 impl Coordinator {
     pub fn new() -> Self {
         Self { mode: Mode::Idle }
@@ -60,8 +69,8 @@ impl Coordinator {
                     },
                     Action::RequestBle(BleRequest {
                         mac: payload.m,
-                        service_uuid: payload.s.unwrap_or_default(),
-                        characteristic_uuid: payload.c.unwrap_or_default(),
+                        service_uuid: normalize_uuid_field(payload.s),
+                        characteristic_uuid: normalize_uuid_field(payload.c),
                         command: payload.d.unwrap_or_default(),
                     }),
                 ]
@@ -201,8 +210,8 @@ mod tests {
             .expect("missing ble request");
 
         assert_eq!(request.mac, "D6:65:62:00:2A:7E");
-        assert_eq!(request.service_uuid, "");
-        assert_eq!(request.characteristic_uuid, "");
+        assert_eq!(request.service_uuid, "AUTO");
+        assert_eq!(request.characteristic_uuid, "AUTO");
         assert_eq!(request.command, "0A030000");
     }
 
