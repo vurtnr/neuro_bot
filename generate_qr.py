@@ -31,7 +31,7 @@ def generate_tcu_command(tcu_address, cmd_type=0x03):
 
 # --- 配置参数 ---
 TCU_ADDRESS = 10 
-MAC_ADDRESS = "D6:65:62:00:2A:7E" # 请替换为您实际的 MAC
+MAC_ADDRESS = "D6:65:62:A0:AD:E5" # 请替换为您实际的 MAC
 
 # 1. 生成指令
 cmd_hex = generate_tcu_command(TCU_ADDRESS)

@@ -30,7 +30,7 @@ class QRNode(Node):
             depth=1,
         )
 
-        self.declare_parameter('image_topic', '/camera/image_raw')
+        self.declare_parameter('image_topic', '/camera_driver/image_raw')
         self.declare_parameter('repeat_suppression_frames', 10)
         image_topic = resolve_camera_topic(self.get_parameter('image_topic').value)
         suppression_frames = int(
