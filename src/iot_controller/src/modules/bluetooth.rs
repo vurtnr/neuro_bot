@@ -35,7 +35,7 @@ impl BluetoothManager {
             .map(|value| Uuid::parse_str(value).map_err(|_| "Characteristic UUID 格式错误"))
             .transpose()?;
 
-        let command_hex = normalize_command_input(command_hex);
+        let mut command_hex = normalize_command_input(command_hex).to_string();
 
         let manager = Manager::new().await?;
         let adapters = manager.adapters().await?;
@@ -87,10 +87,16 @@ impl BluetoothManager {
                     self.write_char = Some(c.clone());
                     self.target_device = Some(p.clone());
 
+                    if command_hex.is_empty() {
+                        let tcu = self.resolve_tcu_from_advertisement(&p).await?;
+                        command_hex = build_query_command(tcu);
+                        println!("🧩 生成查询指令: {}", command_hex);
+                    }
+
                     // 4. 如果有指令，立即执行写入 (即连即发)
                     if !command_hex.is_empty() {
                         println!("⚡ 检测到即时指令，准备发送...");
-                        self.send_hex_command(&p, &c, command_hex).await?;
+                        self.send_hex_command(&p, &c, &command_hex).await?;
                         return Ok(format!("已连接并发送指令: {}", command_hex));
                     }
 
@@ -102,6 +108,23 @@ impl BluetoothManager {
         }
         
         Err(format!("❌ 未扫描到设备: {}", mac_str).into())
+    }
+
+    async fn resolve_tcu_from_advertisement(
+        &self,
+        peripheral: &Peripheral,
+    ) -> Result<u8, Box<dyn Error>> {
+        let props = peripheral
+            .properties()
+            .await?
+            .ok_or("❌ 未获取到广播信息")?;
+
+        let protocol = extract_protocol_from_manufacturer_data(&props.manufacturer_data)
+            .ok_or("❌ 未找到厂商广播数据")?;
+
+        let tcu = parse_tcu_from_protocol(&protocol)?;
+        println!("🧩 解析 TCU 地址: {}", tcu);
+        Ok(tcu)
     }
 
     // 内部辅助：发送 Hex 字符串
@@ -210,6 +233,24 @@ fn parse_tcu_from_protocol(protocol: &[u8]) -> Result<u8, Box<dyn Error>> {
     }
 
     Ok(tcu)
+}
+
+fn extract_protocol_from_manufacturer_data(
+    manufacturer_data: &std::collections::HashMap<u16, Vec<u8>>,
+) -> Option<Vec<u8>> {
+    if let Some(value) = manufacturer_data.get(&0x1188) {
+        if value.len() >= 26 && value[0] == 0x88 && value[1] == 0x11 {
+            return Some(value[..26].to_vec());
+        }
+    }
+
+    for value in manufacturer_data.values() {
+        if value.len() >= 26 && value[0] == 0x88 && value[1] == 0x11 {
+            return Some(value[..26].to_vec());
+        }
+    }
+
+    None
 }
 
 fn normalize_uuid_input(value: &str) -> Option<&str> {
