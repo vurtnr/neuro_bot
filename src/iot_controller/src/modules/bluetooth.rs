@@ -242,6 +242,13 @@ fn extract_protocol_from_manufacturer_data(
         if value.len() >= 26 && value[0] == 0x88 && value[1] == 0x11 {
             return Some(value[..26].to_vec());
         }
+        if value.len() == 24 {
+            let mut protocol = Vec::with_capacity(26);
+            protocol.push(0x88);
+            protocol.push(0x11);
+            protocol.extend_from_slice(value);
+            return Some(protocol);
+        }
     }
 
     for value in manufacturer_data.values() {
@@ -280,7 +287,11 @@ fn normalize_command_input(value: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_query_command, parse_tcu_from_protocol, verify_protocol_checksum};
+    use super::{
+        build_query_command, extract_protocol_from_manufacturer_data, parse_tcu_from_protocol,
+        verify_protocol_checksum,
+    };
+    use std::collections::HashMap;
 
     fn valid_protocol_sample() -> [u8; 26] {
         // Precomputed valid protocol (rand0=0x12, rand1=0x34, tcu=0x0A).
@@ -297,6 +308,14 @@ mod tests {
             0x88, 0x11, 0xA7, 0x12, 0x34, 0xE2, 0xC7, 0x83, 0xD7, 0xF0,
             0x9C, 0x8D, 0xE8, 0xC5, 0x81, 0xD5, 0xF2, 0x9E, 0x8F, 0xE9,
             0xC7, 0x83, 0xD6, 0x73, 0x06, 0x66,
+        ]
+    }
+
+    fn manufacturer_value_without_header() -> [u8; 24] {
+        [
+            0xA7, 0x12, 0x34, 0xE2, 0xC7, 0x83, 0xD7, 0xF0, 0x9C, 0x8D,
+            0xE8, 0xC5, 0x81, 0xD5, 0xF2, 0x9E, 0x8F, 0xE9, 0xC7, 0x83,
+            0xD6, 0x73, 0x06, 0x66,
         ]
     }
 
@@ -317,5 +336,27 @@ mod tests {
     fn query_command_uses_crc16() {
         let cmd = build_query_command(0x0A);
         assert_eq!(cmd, "0A0300000025856A");
+    }
+
+    #[test]
+    fn manufacturer_data_with_company_id_prefixes_header() {
+        let mut data = HashMap::new();
+        let value = manufacturer_value_without_header();
+        data.insert(0x1188, value.to_vec());
+        let protocol =
+            extract_protocol_from_manufacturer_data(&data).expect("protocol not found");
+        assert_eq!(protocol.len(), 26);
+        assert_eq!(&protocol[..2], &[0x88, 0x11]);
+        assert_eq!(&protocol[2..], value.as_slice());
+    }
+
+    #[test]
+    fn manufacturer_data_with_header_value_is_used() {
+        let mut data = HashMap::new();
+        let value = invalid_checksum_sample().to_vec();
+        data.insert(0x1188, value.clone());
+        let protocol =
+            extract_protocol_from_manufacturer_data(&data).expect("protocol not found");
+        assert_eq!(protocol, value);
     }
 }
