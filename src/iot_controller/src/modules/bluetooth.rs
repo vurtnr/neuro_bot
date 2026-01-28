@@ -288,8 +288,9 @@ fn normalize_command_input(value: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_query_command, extract_protocol_from_manufacturer_data, parse_tcu_from_protocol,
-        verify_protocol_checksum,
+        build_query_command, extract_protocol_from_manufacturer_data, fault_code_to_text,
+        parse_response_payload, parse_tcu_from_protocol, verify_protocol_checksum,
+        verify_response_crc,
     };
     use std::collections::HashMap;
 
@@ -317,6 +318,24 @@ mod tests {
             0xE8, 0xC5, 0x81, 0xD5, 0xF2, 0x9E, 0x8F, 0xE9, 0xC7, 0x83,
             0xD6, 0x73, 0x06, 0x66,
         ]
+    }
+
+    fn sample_response_payload() -> Vec<u8> {
+        let mut payload = vec![0u8; 62];
+        payload[0] = 0x37; // TCU address
+        payload[1..3].copy_from_slice(&[0x00, 0x20]); // work mode
+        payload[3..5].copy_from_slice(&[0x00, 0x10]); // fault code
+        payload[9..11].copy_from_slice(&[0x00, 0x7B]); // target angle 12.3
+        payload[11..13].copy_from_slice(&[0x00, 0x79]); // actual angle 12.1
+        payload[20..22].copy_from_slice(&[0x2D, 0x76]); // longitude 116.38
+        payload[22..24].copy_from_slice(&[0x0F, 0x96]); // latitude 39.90
+        payload[24] = 8; // timezone
+
+        let crc = crc16_modbus(&payload[..payload.len() - 2]);
+        let len = payload.len();
+        payload[len - 2] = (crc & 0xFF) as u8;
+        payload[len - 1] = (crc >> 8) as u8;
+        payload
     }
 
     #[test]
@@ -358,5 +377,34 @@ mod tests {
         let protocol =
             extract_protocol_from_manufacturer_data(&data).expect("protocol not found");
         assert_eq!(protocol, value);
+    }
+
+    #[test]
+    fn response_crc_rejects_invalid_data() {
+        let mut payload = sample_response_payload();
+        let len = payload.len();
+        payload[len - 1] = 0x00;
+        assert!(!verify_response_crc(&payload));
+    }
+
+    #[test]
+    fn response_parses_required_fields() {
+        let payload = sample_response_payload();
+        let parsed = parse_response_payload(&payload).expect("parse failed");
+        assert_eq!(parsed.tcu_address, 0x37);
+        assert_eq!(parsed.work_mode, 0x0020);
+        assert_eq!(parsed.fault_code, 0x0010);
+        assert!((parsed.target_angle - 12.3).abs() < 0.01);
+        assert!((parsed.actual_angle - 12.1).abs() < 0.01);
+        assert!((parsed.longitude - 116.38).abs() < 0.01);
+        assert!((parsed.latitude - 39.90).abs() < 0.01);
+        assert_eq!(parsed.timezone, 8);
+    }
+
+    #[test]
+    fn fault_code_to_text_maps_bits() {
+        let text = fault_code_to_text(0x4010);
+        assert!(text.contains("电机过流"));
+        assert!(text.contains("无线模块故障"));
     }
 }
