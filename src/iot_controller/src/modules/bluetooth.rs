@@ -341,8 +341,9 @@ struct PersistedDeviceInfo {
 }
 
 fn persist_device_info(mac: &str, tcu: u8) -> Result<(), Box<dyn Error>> {
-    let path = Path::new("/neuro_bot_ws/data/ble_devices.json");
-    persist_device_info_to_path(path, mac, tcu)
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/home/pi".to_string());
+    let path = Path::new(&home).join("data/ble_devices.json");
+    persist_device_info_to_path(&path, mac, tcu)
 }
 
 fn persist_device_info_to_path(path: &Path, mac: &str, tcu: u8) -> Result<(), Box<dyn Error>> {
