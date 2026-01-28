@@ -1,7 +1,9 @@
 use btleplug::api::{Central, Manager as _, Peripheral as _, ScanFilter, WriteType, Characteristic, CharPropFlags};
 use btleplug::platform::{Manager, Peripheral};
 use futures::StreamExt;
+use serde::Serialize;
 use std::error::Error;
+use std::path::Path;
 use std::time::Duration;
 use tokio::time;
 use uuid::Uuid;
@@ -95,6 +97,11 @@ impl BluetoothManager {
 
                     if command_hex.is_empty() {
                         let tcu = self.resolve_tcu_from_advertisement(&p).await?;
+                        if let Err(e) = persist_device_info(mac_str, tcu) {
+                            eprintln!("⚠️ 持久化设备信息失败: {}", e);
+                        } else {
+                            println!("💾 已保存设备信息: MAC={}, TCU={}", mac_str, tcu);
+                        }
                         command_hex = build_query_command(tcu);
                         println!("🧩 生成查询指令: {}", command_hex);
                     }
@@ -327,6 +334,33 @@ fn extract_protocol_from_manufacturer_data(
     None
 }
 
+#[derive(Serialize)]
+struct PersistedDeviceInfo {
+    mac: String,
+    tcu: u8,
+}
+
+fn persist_device_info(mac: &str, tcu: u8) -> Result<(), Box<dyn Error>> {
+    let path = Path::new("/neuro_bot_ws/data/ble_devices.json");
+    persist_device_info_to_path(path, mac, tcu)
+}
+
+fn persist_device_info_to_path(path: &Path, mac: &str, tcu: u8) -> Result<(), Box<dyn Error>> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let info = PersistedDeviceInfo {
+        mac: mac.to_string(),
+        tcu,
+    };
+    let json = serde_json::to_string(&info)?;
+    let tmp_path = path.with_extension("json.tmp");
+    std::fs::write(&tmp_path, json)?;
+    std::fs::rename(tmp_path, path)?;
+    Ok(())
+}
+
 struct ParsedResponse {
     tcu_address: u8,
     work_mode: u16,
@@ -474,10 +508,12 @@ fn normalize_command_input(value: &str) -> &str {
 mod tests {
     use super::{
         build_query_command, extract_protocol_from_manufacturer_data, fault_code_to_text,
-        parse_response_payload, parse_tcu_from_protocol, verify_protocol_checksum,
-        verify_response_crc,
+        parse_response_payload, parse_tcu_from_protocol, persist_device_info_to_path,
+        verify_protocol_checksum, verify_response_crc,
     };
     use std::collections::HashMap;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn valid_protocol_sample() -> [u8; 26] {
         // Precomputed valid protocol (rand0=0x12, rand1=0x34, tcu=0x0A).
@@ -521,6 +557,16 @@ mod tests {
         payload[len - 2] = (crc & 0xFF) as u8;
         payload[len - 1] = (crc >> 8) as u8;
         payload
+    }
+
+    fn temp_path() -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let mut dir = std::env::temp_dir();
+        dir.push(format!("ble_devices_test_{}_{}", std::process::id(), nanos));
+        dir
     }
 
     #[test]
@@ -591,5 +637,17 @@ mod tests {
         let text = fault_code_to_text(0x4010);
         assert!(text.contains("电机过流"));
         assert!(text.contains("无线模块故障"));
+    }
+
+    #[test]
+    fn persist_device_info_writes_json() {
+        let dir = temp_path();
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("ble_devices.json");
+        persist_device_info_to_path(&path, "D6:65:62:00:2A:7E", 55).unwrap();
+        let content = std::fs::read_to_string(&path).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(value["mac"], "D6:65:62:00:2A:7E");
+        assert_eq!(value["tcu"], 55);
     }
 }
