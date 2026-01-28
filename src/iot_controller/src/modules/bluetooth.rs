@@ -1,9 +1,15 @@
 use btleplug::api::{Central, Manager as _, Peripheral as _, ScanFilter, WriteType, Characteristic, CharPropFlags};
 use btleplug::platform::{Manager, Peripheral};
+use futures::StreamExt;
 use std::error::Error;
 use std::time::Duration;
 use tokio::time;
 use uuid::Uuid;
+
+pub struct BleExecutionResult {
+    pub message: String,
+    pub tts: Option<String>,
+}
 
 pub struct BluetoothManager {
     target_device: Option<Peripheral>,
@@ -25,7 +31,7 @@ impl BluetoothManager {
         service_uuid_str: &str,
         char_uuid_str: &str,
         command_hex: &str
-    ) -> Result<String, Box<dyn Error>> {
+    ) -> Result<BleExecutionResult, Box<dyn Error>> {
         // 1. 解析传入的 UUID (空/占位符则视为自动发现)
         let target_service_uuid = normalize_uuid_input(service_uuid_str)
             .map(|value| Uuid::parse_str(value).map_err(|_| "Service UUID 格式错误"))
@@ -67,7 +73,7 @@ impl BluetoothManager {
                 // 寻找满足条件的特征值：
                 // A. 如果指定了 UUID，必须完全匹配
                 // B. 如果没指定 UUID，寻找第一个"可写"的特征值
-                let matched_char = chars.into_iter().find(|c| {
+                let matched_char = chars.iter().find(|c| {
                     match (target_service_uuid, target_char_uuid) {
                         (Some(s_uuid), Some(c_uuid)) => {
                             c.uuid == c_uuid && c.service_uuid == s_uuid
@@ -78,7 +84,7 @@ impl BluetoothManager {
                             c.properties.contains(CharPropFlags::WRITE_WITHOUT_RESPONSE)
                         }
                     }
-                });
+                }).cloned();
 
                 if let Some(c) = matched_char {
                     println!("✅ 锁定特征值: {:?} (Service: {:?})", c.uuid, c.service_uuid);
@@ -93,14 +99,75 @@ impl BluetoothManager {
                         println!("🧩 生成查询指令: {}", command_hex);
                     }
 
+                    let command_bytes = if command_hex.is_empty() {
+                        None
+                    } else {
+                        Some(Self::hex_to_bytes(&command_hex)?)
+                    };
+                    let expects_response = command_bytes
+                        .as_ref()
+                        .map(|bytes| bytes.len() >= 2 && bytes[1] == 0x03)
+                        .unwrap_or(false);
+
+                    let notify_uuid = Uuid::parse_str("0000FFF1-0000-1000-8000-00805F9B34FB")?;
+                    let notify_char = chars.iter().find(|c| c.uuid == notify_uuid).cloned();
+                    let mut notifications = None;
+
+                    if expects_response {
+                        let notify_char = notify_char.ok_or("❌ 未找到通知特征值")?;
+                        if !(notify_char.properties.contains(CharPropFlags::NOTIFY)
+                            || notify_char.properties.contains(CharPropFlags::INDICATE))
+                        {
+                            return Err("❌ 通知特征值不支持通知".into());
+                        }
+                        p.subscribe(&notify_char).await?;
+                        println!("✅ 订阅通知特征值: {:?}", notify_char.uuid);
+                        notifications = Some(p.notifications().await?);
+                    }
+
                     // 4. 如果有指令，立即执行写入 (即连即发)
                     if !command_hex.is_empty() {
                         println!("⚡ 检测到即时指令，准备发送...");
                         self.send_hex_command(&p, &c, &command_hex).await?;
-                        return Ok(format!("已连接并发送指令: {}", command_hex));
+
+                        let mut tts = None;
+                        if expects_response {
+                            let notify_uuid = notify_uuid;
+                            let mut stream = notifications.ok_or("❌ 未初始化通知流")?;
+                            let deadline = time::Instant::now() + Duration::from_secs(5);
+                            loop {
+                                let remaining = deadline.saturating_duration_since(time::Instant::now());
+                                if remaining.is_zero() {
+                                    return Err("❌ 未收到通知".into());
+                                }
+                                let next = time::timeout(remaining, stream.next()).await;
+                                let notification = match next {
+                                    Ok(Some(value)) => value,
+                                    Ok(None) => return Err("❌ 通知流结束".into()),
+                                    Err(_) => return Err("❌ 未收到通知".into()),
+                                };
+                                if notification.uuid != notify_uuid {
+                                    continue;
+                                }
+                                println!("📥 收到通知: {:02X?}", notification.value);
+                                let parsed = parse_response_payload(&notification.value)?;
+                                let tts_text = build_tts(&parsed);
+                                println!("🗣️ TTS: {}", tts_text);
+                                tts = Some(tts_text);
+                                break;
+                            }
+                        }
+
+                        return Ok(BleExecutionResult {
+                            message: format!("已连接并发送指令: {}", command_hex),
+                            tts,
+                        });
                     }
 
-                    return Ok("已连接 (无指令发送)".to_string());
+                    return Ok(BleExecutionResult {
+                        message: "已连接 (无指令发送)".to_string(),
+                        tts: None,
+                    });
                 } else {
                     return Err(format!("❌ 未找到合适的可写特征值 (UUID 指定: {:?})", char_uuid_str).into());
                 }
@@ -258,6 +325,124 @@ fn extract_protocol_from_manufacturer_data(
     }
 
     None
+}
+
+struct ParsedResponse {
+    tcu_address: u8,
+    work_mode: u16,
+    fault_code: u16,
+    target_angle: f32,
+    actual_angle: f32,
+    longitude: f32,
+    latitude: f32,
+    timezone: i8,
+}
+
+fn verify_response_crc(payload: &[u8]) -> bool {
+    if payload.len() < 4 {
+        return false;
+    }
+    let crc_index = payload.len() - 2;
+    let expected = crc16_modbus(&payload[..crc_index]);
+    let got = (payload[crc_index] as u16) | ((payload[crc_index + 1] as u16) << 8);
+    expected == got
+}
+
+fn parse_i16_be(bytes: &[u8]) -> i16 {
+    i16::from_be_bytes([bytes[0], bytes[1]])
+}
+
+fn parse_u16_be(bytes: &[u8]) -> u16 {
+    u16::from_be_bytes([bytes[0], bytes[1]])
+}
+
+fn parse_response_payload(payload: &[u8]) -> Result<ParsedResponse, Box<dyn Error>> {
+    if payload.len() != 62 && payload.len() != 79 {
+        return Err("❌ 响应长度非法".into());
+    }
+    if !verify_response_crc(payload) {
+        return Err("❌ 响应 CRC 校验失败".into());
+    }
+
+    let tcu_address = payload[0];
+    let work_mode = parse_u16_be(&payload[1..3]);
+    let fault_code = parse_u16_be(&payload[3..5]);
+    let target_angle = parse_i16_be(&payload[9..11]) as f32 / 10.0;
+    let actual_angle = parse_i16_be(&payload[11..13]) as f32 / 10.0;
+    let longitude = parse_i16_be(&payload[20..22]) as f32 / 100.0;
+    let latitude = parse_i16_be(&payload[22..24]) as f32 / 100.0;
+    let timezone = payload[24] as i8;
+
+    Ok(ParsedResponse {
+        tcu_address,
+        work_mode,
+        fault_code,
+        target_angle,
+        actual_angle,
+        longitude,
+        latitude,
+        timezone,
+    })
+}
+
+fn fault_code_to_text(code: u16) -> String {
+    let mut parts = Vec::new();
+    if code & (1 << 0) != 0 {
+        parts.push("主从倾角差异");
+    }
+    if code & (1 << 2) != 0 {
+        parts.push("电机损坏");
+    }
+    if code & (1 << 3) != 0 {
+        parts.push("倾角故障");
+    }
+    if code & (1 << 4) != 0 {
+        parts.push("电机过流");
+    }
+    if code & (1 << 5) != 0 {
+        parts.push("东限角警报");
+    }
+    if code & (1 << 6) != 0 {
+        parts.push("西限角警报");
+    }
+    if code & (1 << 7) != 0 {
+        parts.push("RTC故障");
+    }
+    if code & (1 << 8) != 0 {
+        parts.push("电量有限警报");
+    }
+    if code & (1 << 9) != 0 {
+        parts.push("低电量警报");
+    }
+    if code & (1 << 10) != 0 {
+        parts.push("开关电源损坏");
+    }
+    if code & (1 << 14) != 0 {
+        parts.push("无线模块故障");
+    }
+    if code & (1 << 15) != 0 {
+        parts.push("通信故障");
+    }
+
+    if parts.is_empty() {
+        "无故障".to_string()
+    } else {
+        parts.join("、")
+    }
+}
+
+fn build_tts(parsed: &ParsedResponse) -> String {
+    let faults = fault_code_to_text(parsed.fault_code);
+    format!(
+        "目标角度 {:.1} 度，实际角度 {:.1} 度，经度 {:.2}，纬度 {:.2}，时区 {}，工作模式 0x{:04X}，故障：{}。",
+        parsed.target_angle,
+        parsed.actual_angle,
+        parsed.longitude,
+        parsed.latitude,
+        parsed.timezone,
+        parsed.work_mode,
+        faults
+    )
 }
 
 fn normalize_uuid_input(value: &str) -> Option<&str> {
