@@ -10,6 +10,8 @@ use serde::Deserialize;
 pub struct StateManager {
     publisher: Publisher<RobotState>,
     current_state: Arc<Mutex<i32>>, // 内部仍保留 ID 用于逻辑判断 (0=IDLE)
+    // 🆕 新增: 网络在线状态标记 (独立于状态机，不影响 IDLE 判断)
+    is_online: Arc<Mutex<bool>>,
 }
 
 impl StateManager {
@@ -18,7 +20,24 @@ impl StateManager {
         Ok(Self {
             publisher,
             current_state: Arc::new(Mutex::new(0)),
+            // 🆕 初始化: 默认先假设在线，直到收到第一次 NetworkStatus 更新
+            is_online: Arc::new(Mutex::new(true)),
         })
+    }
+
+    // 🆕 新增: 设置网络状态
+    pub fn set_online(&self, online: bool) {
+        let mut lock = self.is_online.lock().unwrap();
+        if *lock != online {
+            *lock = online;
+            // 可选: 这里可以打印日志或发布状态变更，但为了简化暂不处理
+            println!("🌐 System Online Status Changed: {}", online);
+        }
+    }
+
+    // 🆕 新增: 获取网络状态
+    pub fn is_online(&self) -> bool {
+        *self.is_online.lock().unwrap()
     }
 
     // 🟢 [Fix] 更新 Helper 方法，传入对应的字符串状态

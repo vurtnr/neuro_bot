@@ -19,6 +19,7 @@ set(msg_files
   "msg/FaceEmotion.msg"
   "msg/VisionResult.msg"
   "msg/BluetoothCommand.msg"
+  "msg/NetworkStatus.msg"
 )
 
 # 你的服务定义

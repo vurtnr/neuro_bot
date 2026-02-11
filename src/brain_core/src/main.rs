@@ -4,7 +4,7 @@ use modules::emotion::EmotionManager;
 use modules::state::{BrainEvent, NeuralLinkPayload, StateManager};
 use r2r;
 use r2r::robot_interfaces::srv::{AskLLM, ConnectBluetooth};
-use r2r::robot_interfaces::msg::{AudioSpeech, VisionResult};
+use r2r::robot_interfaces::msg::{AudioSpeech, VisionResult, NetworkStatus};
 use r2r::std_msgs::msg::String as StringMsg;
 use futures::StreamExt;
 use std::future::{pending, Future};
@@ -35,6 +35,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut speech_sub = node.subscribe::<AudioSpeech>("/audio/speech", r2r::QosProfile::default())?;
     let mut vision_sub = node.subscribe::<VisionResult>("/vision/result", r2r::QosProfile::default())?;
 
+    // ==========================================
+    // 🆕 3. 网络状态监控 (注入点)
+    // ==========================================
+    let mut network_sub = node.subscribe::<NetworkStatus>("/system/network_status", r2r::QosProfile::default())?;
+    let state_for_net = state_manager.clone(); // StateManager 必须 derive Clone
+    tokio::spawn(async move {
+        println!("📡 Network Monitor Started...");
+        while let Some(msg) = network_sub.next().await {
+            // 逻辑: 已连接且信号不是未知(99)才算有效在线
+            // 您可以根据实际情况调整，比如要求 signal_strength > 10
+            let is_online = msg.is_connected && msg.signal_strength != 99;
+            state_for_net.set_online(is_online);
+        }
+    });
+    // ==========================================
+
     println!("🔗 System Ready. Entering Event Loop.");
 
     let mut coordinator = Coordinator::new();
@@ -62,6 +78,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             msg = speech_sub.next() => {
                 if let Some(msg) = msg {
                     if msg.is_final {
+                       // ==========================================
+                        // 🆕 4. 离线拦截逻辑
+                        // ==========================================
+                        if !state_manager.is_online() {
+                            println!("🚫 离线模式: 拦截语音请求");
+                            state_manager.set_busy("Network Offline");
+                            let _ = tts_publisher.publish(&StringMsg { 
+                                data: "网络信号不佳，我暂时无法连接大脑。".to_string() 
+                            });
+                            let sm_clone = state_manager.clone();
+                            tokio::spawn(async move {
+                                time::sleep(Duration::from_secs(3)).await;
+                                sm_clone.set_idle();
+                            });
+                            continue; 
+                        }
                         event_to_handle = Some(BrainEvent::AudioFinal(msg.text));
                     }
                 }

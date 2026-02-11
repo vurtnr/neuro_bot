@@ -1,7 +1,9 @@
 mod modules;
 use modules::bluetooth::BluetoothManager;
 use r2r;
+use modules::cellular::CellularManager;
 use r2r::robot_interfaces::srv::ConnectBluetooth;
+use r2r::robot_interfaces::msg::NetworkStatus;
 use r2r::std_msgs::msg::String as StringMsg;
 // use r2r::robot_interfaces::msg::BluetoothCommand; // ⚠️ 旧的 Topic 方式暂时屏蔽，因为 V1 协议强依赖 UUID
 use futures::StreamExt;
@@ -29,6 +31,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let tts_publisher =
         node.create_publisher::<StringMsg>("/audio/tts_play", r2r::QosProfile::default())?;
+
+
+    let cellular_pub = node.create_publisher::<NetworkStatus>("/system/network_status", r2r::QosProfile::default())?;
+    let cellular_manager = CellularManager::new();
+    
+    // 放入后台任务运行 (这样不会阻塞蓝牙)
+    tokio::spawn(async move {
+        cellular_manager.run(cellular_pub).await;
+    });
+    // ==========================================
+
+    println!("🔗 Bluetooth Service Ready...");
     
     // 2. 旧的 Topic 订阅暂时屏蔽 (如果代码中有用到 BluetoothCommand 的地方建议先注释掉)
     // let mut command_sub = node.subscribe::<BluetoothCommand>("/iot/bluetooth_command", r2r::QosProfile::default())?;
@@ -88,6 +102,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             message: msg,
         });
     }
+
+    
 
     spin_handle.await?;
     Ok(())
