@@ -10,3 +10,4 @@ camera_ros
 .worktrees
 AGENTS.md
 docs
+.DS_Store
