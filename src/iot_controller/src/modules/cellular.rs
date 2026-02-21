@@ -2,7 +2,7 @@
 
 use r2r;
 use r2r::robot_interfaces::msg::NetworkStatus;
-use std::sync::{Arc, Mutex};
+// use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::{sleep, Duration};
 use tokio_serial::SerialPortBuilderExt;
@@ -18,14 +18,14 @@ impl CellularManager {
         Self {
             // ⚠️ 注意: SIM7600 的 AT 命令口通常是 ttyUSB2
             // 如果后续报错 Device Busy，可能需要换端口或配置 udev
-            port_name: "/dev/ttyUSB2".to_string(), 
+            port_name: "/dev/ttyUSB2".to_string(),
             baud_rate: 115200,
         }
     }
 
     pub async fn run(&self, publisher: r2r::Publisher<NetworkStatus>) {
         println!("📡 Cellular Module Started. Listening on {}", self.port_name);
-        
+
         // 正则表达式预编译
         let re_csq = Regex::new(r"\+CSQ: (\d+),(\d+)").unwrap();
         // GPS 格式: +CGPSINFO: [lat],[N/S],[long],[E/W],...
@@ -36,7 +36,7 @@ impl CellularManager {
             match tokio_serial::new(&self.port_name, self.baud_rate).open_native_async() {
                 Ok(mut port) => {
                     println!("✅ 4G Serial Connected!");
-                    
+
                     // 1. 开启 GPS (幂等操作，多发几次没关系)
                     let _ = port.write_all(b"AT+CGPS=1\r\n").await;
                     sleep(Duration::from_millis(500)).await;
@@ -45,7 +45,7 @@ impl CellularManager {
 
                     loop {
                         // === 循环查询任务 ===
-                        
+
                         // A. 查询信号
                         if let Err(_) = port.write_all(b"AT+CSQ\r\n").await { break; }
                         sleep(Duration::from_millis(100)).await; // 等待回复
@@ -81,7 +81,7 @@ impl CellularManager {
                                     // 这里我们先做简单的字符串转 float，后续再优化坐标系
                                     let raw_lat = caps[1].parse::<f64>().unwrap_or(0.0);
                                     let raw_lon = caps[3].parse::<f64>().unwrap_or(0.0);
-                                    
+
                                     // 简单的格式转换 (DDMM.MMMM -> DD.DDDD)
                                     let lat_deg = (raw_lat / 100.0).floor();
                                     let lat_min = raw_lat % 100.0;
@@ -103,7 +103,7 @@ impl CellularManager {
                                 break; // 跳出内层循环，触发重连
                             }
                         }
-                        
+
                         // 1Hz 频率
                         sleep(Duration::from_secs(1)).await;
                     }
