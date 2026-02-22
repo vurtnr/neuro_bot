@@ -4,7 +4,7 @@ use modules::emotion::EmotionManager;
 use modules::state::{BrainEvent, NeuralLinkPayload, StateManager};
 use r2r;
 use r2r::robot_interfaces::srv::{AskLLM, ConnectBluetooth};
-use r2r::robot_interfaces::msg::{AudioSpeech, VisionResult, NetworkStatus};
+use r2r::robot_interfaces::msg::{AudioSpeech, VisionResult, NetworkStatus,BodyCommand};
 use r2r::std_msgs::msg::String as StringMsg;
 use futures::StreamExt;
 use std::future::{pending, Future};
@@ -27,6 +27,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // 2. 通信接口
     let tts_publisher = node.create_publisher::<StringMsg>("/audio/tts_play", r2r::QosProfile::default())?;
+
+    // 创建发布身体动作指令的 Publisher
+    let body_pub = node.create_publisher::<BodyCommand>("/iot/body_command", r2r::QosProfile::default())?;
     
     // ⚠️ 注意：这里连接的是我们刚刚修好的 IoT 服务
     let bt_client = Arc::new(node.create_client::<ConnectBluetooth::Service>("/iot/connect_bluetooth", r2r::QosProfile::default())?);
@@ -232,6 +235,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     },
                                 }
                             }));
+                        }
+                    }
+                    CoordinatorAction::BodyMove { cmd, params } => {
+                        let msg = BodyCommand {
+                            cmd: cmd.clone(),
+                            params: params.clone(),
+                        };
+                        
+                        if let Err(e) = body_pub.publish(&msg) {
+                            eprintln!("❌ 发送舵机指令失败: {}", e);
+                        } else {
+                            println!("🚀 下发身体动作指令: cmd={}, params={}", cmd, params);
                         }
                     }
                 }
