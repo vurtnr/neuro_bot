@@ -70,6 +70,7 @@ def generate_launch_description():
                             LaunchConfiguration('repeat_suppression_frames'),
                             value_type=int,
                         ),
+                        'require_active_inspection': True,
                     }],
                 ),
                 # 语音引擎 (听/说)
@@ -100,6 +101,12 @@ def generate_launch_description():
                     package='brain_core',
                     executable='brain_core',
                     name='brain_core',
+                    output='screen'
+                ),
+                Node(
+                    package='inspection_bridge',
+                    executable='web_server',
+                    name='inspection_bridge',
                     output='screen'
                 )
             ]

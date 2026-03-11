@@ -5,9 +5,10 @@ from cv_bridge import CvBridge
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
-from robot_interfaces.msg import VisionResult
+from robot_interfaces.msg import InspectionStatus, VisionResult
 from sensor_msgs.msg import Image
 
+from vision_engine.inspection_gate import InspectionGate
 from vision_engine.qr_config import resolve_camera_topic
 from vision_engine.qr_dedupe import QrContentDeduper
 
@@ -32,17 +33,30 @@ class QRNode(Node):
 
         self.declare_parameter('image_topic', '/camera_driver/image_raw')
         self.declare_parameter('repeat_suppression_frames', 10)
+        self.declare_parameter('require_active_inspection', False)
         image_topic = resolve_camera_topic(self.get_parameter('image_topic').value)
         suppression_frames = int(
             self.get_parameter('repeat_suppression_frames').value
         )
+        require_active_inspection = bool(
+            self.get_parameter('require_active_inspection').value
+        )
         self.deduper = QrContentDeduper(suppression_frames=suppression_frames)
+        self.inspection_gate = InspectionGate(
+            require_active_session=require_active_inspection
+        )
 
         self.subscription = self.create_subscription(
             Image,
             image_topic,
             self.listener_callback,
             qos_profile,
+        )
+        self.inspection_subscription = self.create_subscription(
+            InspectionStatus,
+            '/inspection/status',
+            self.handle_inspection_status,
+            10,
         )
 
         self.publisher_ = self.create_publisher(VisionResult, '/vision/result', 10)
@@ -59,6 +73,8 @@ class QRNode(Node):
             self.detector = cv2.QRCodeDetector()
 
         self.get_logger().info(f'📸 订阅图像话题: {image_topic}')
+        if require_active_inspection:
+            self.get_logger().info('🛡️ 仅在巡检任务激活时发布二维码结果')
 
     def restore_mac(self, compact_mac):
         """将 D66562... 还原为 D6:65:62..."""
@@ -133,7 +149,12 @@ class QRNode(Node):
         except Exception as e:
             self.get_logger().error(f'System Error: {e}')
 
+    def handle_inspection_status(self, msg):
+        self.inspection_gate.update(msg.request_id, msg.stage)
+
     def publish_result(self, content_str):
+        if not self.inspection_gate.should_publish():
+            return
         self.get_logger().info(f'🚀 发送控制指令: {content_str}')
         msg = VisionResult()
         msg.type = 'ble'

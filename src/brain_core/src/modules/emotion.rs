@@ -27,7 +27,7 @@ impl EmotionManager {
     pub fn set_neutral(&self) {
         self.publish("neutral");
     }
-    
+
     // 新增：监听状态 (对应屏幕的 Magenta 色)
     pub fn set_listening(&self) {
         self.publish("listening");

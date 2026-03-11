@@ -21,12 +21,14 @@ set(msg_files
   "msg/BluetoothCommand.msg"
   "msg/NetworkStatus.msg"
   "msg/BodyCommand.msg"
+  "msg/InspectionStatus.msg"
 )
 
 # 你的服务定义
 set(srv_files
   "srv/AskLLM.srv"
   "srv/ConnectBluetooth.srv"
+  "srv/StartInspection.srv"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

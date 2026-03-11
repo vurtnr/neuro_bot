@@ -1,4 +1,5 @@
 pub mod emotion;
 
-pub mod state;
 pub mod coordinator;
+pub mod inspection;
+pub mod state;
