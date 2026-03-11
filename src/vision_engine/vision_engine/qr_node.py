@@ -127,6 +127,8 @@ class QRNode(Node):
 
                     # 1. 兼容完整协议 {"t": "ble", ...}
                     if obj.get('t') == 'ble':
+                        if not self.inspection_gate.should_publish():
+                            continue
                         if self.deduper.should_publish(data, self.frame_count):
                             self.publish_result(data)
 
@@ -139,6 +141,8 @@ class QRNode(Node):
                             'cmd': obj.get('c', ''),
                         }
                         full_json = json.dumps(full_msg)
+                        if not self.inspection_gate.should_publish():
+                            continue
                         if self.deduper.should_publish(full_json, self.frame_count):
                             self.get_logger().info(f'⚡️ 捕获极简指令: {data}')
                             self.publish_result(full_json)
@@ -151,6 +155,14 @@ class QRNode(Node):
 
     def handle_inspection_status(self, msg):
         self.inspection_gate.update(msg.request_id, msg.stage)
+        if msg.stage in ('accepted', 'waiting_for_qr'):
+            self.get_logger().info(
+                f'🟢 巡检会话激活: request_id={msg.request_id} stage={msg.stage}'
+            )
+        elif msg.stage in ('success', 'failed'):
+            self.get_logger().info(
+                f'⚪ 巡检会话结束: request_id={msg.request_id} stage={msg.stage}'
+            )
 
     def publish_result(self, content_str):
         if not self.inspection_gate.should_publish():
