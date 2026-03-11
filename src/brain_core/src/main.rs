@@ -61,6 +61,10 @@ fn spawn_inspection_ble_request(
     req: modules::coordinator::BleRequest,
 ) -> Pin<Box<dyn Future<Output = (bool, String)>>> {
     Box::pin(async move {
+        println!(
+            "🔎 [inspection] 发起 BLE 请求: mac={} service_uuid={} characteristic_uuid={} command={}",
+            req.mac, req.service_uuid, req.characteristic_uuid, req.command
+        );
         let svc = ConnectBluetooth::Request {
             mac: req.mac,
             service_uuid: req.service_uuid,
@@ -68,12 +72,29 @@ fn spawn_inspection_ble_request(
             command: req.command,
         };
         match client.request(&svc) {
-            Ok(future) => match time::timeout(Duration::from_secs(15), future).await {
-                Ok(Ok(resp)) => (resp.success, resp.message),
-                Ok(Err(e)) => (false, format!("ROS Call Error: {}", e)),
-                Err(_) => (false, "Timeout".to_string()),
+            Ok(future) => match time::timeout(Duration::from_secs(30), future).await {
+                Ok(Ok(resp)) => {
+                    println!(
+                        "✅ [inspection] BLE 请求完成: success={} message={}",
+                        resp.success, resp.message
+                    );
+                    (resp.success, resp.message)
+                }
+                Ok(Err(e)) => {
+                    let message = format!("ROS Call Error: {}", e);
+                    eprintln!("❌ [inspection] {}", message);
+                    (false, message)
+                }
+                Err(_) => {
+                    eprintln!("❌ [inspection] BLE 请求超时");
+                    (false, "Timeout".to_string())
+                }
             },
-            Err(e) => (false, format!("Client Request Error: {}", e)),
+            Err(e) => {
+                let message = format!("Client Request Error: {}", e);
+                eprintln!("❌ [inspection] {}", message);
+                (false, message)
+            }
         }
     })
 }
