@@ -1,4 +1,6 @@
-use btleplug::api::{Central, Manager as _, Peripheral as _, ScanFilter, WriteType, Characteristic, CharPropFlags};
+use btleplug::api::{
+    Central, CharPropFlags, Characteristic, Manager as _, Peripheral as _, ScanFilter, WriteType,
+};
 use btleplug::platform::{Manager, Peripheral};
 use futures::StreamExt;
 use serde::Serialize;
@@ -62,8 +64,11 @@ impl BluetoothManager {
             
             if address_str == normalized_target {
                 println!("🔗 找到设备，正在连接...");
-                central.stop_scan().await?;
-                p.connect().await?;
+                if let Err(e) = central.stop_scan().await {
+                    eprintln!("⚠️ 停止扫描失败: {}", e);
+                }
+                time::sleep(Duration::from_millis(200)).await;
+                Self::connect_with_retry(&p, 3).await?;
                 
                 println!("✅ 连接建立! 正在发现服务...");
                 p.discover_services().await?;
@@ -182,6 +187,40 @@ impl BluetoothManager {
         }
         
         Err(format!("❌ 未扫描到设备: {}", mac_str).into())
+    }
+
+    async fn connect_with_retry(
+        peripheral: &Peripheral,
+        max_attempts: usize,
+    ) -> Result<(), Box<dyn Error>> {
+        let mut last_error = String::new();
+
+        if peripheral.is_connected().await.unwrap_or(false) {
+            println!("ℹ️ 设备当前已连接，先断开旧连接后重试...");
+            if let Err(e) = peripheral.disconnect().await {
+                eprintln!("⚠️ 断开旧连接失败: {}", e);
+            }
+            time::sleep(Duration::from_millis(300)).await;
+        }
+
+        for attempt in 1..=max_attempts {
+            match peripheral.connect().await {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    last_error = e.to_string();
+                    eprintln!(
+                        "⚠️ BLE 连接失败 (第 {}/{} 次): {}",
+                        attempt, max_attempts, last_error
+                    );
+                    let _ = peripheral.disconnect().await;
+                    if attempt < max_attempts {
+                        time::sleep(Duration::from_millis(500)).await;
+                    }
+                }
+            }
+        }
+
+        Err(format!("❌ BLE 连接失败: {}", last_error).into())
     }
 
     async fn resolve_tcu_from_advertisement(

@@ -24,6 +24,12 @@ fn init_servo_manager(device: &str, baud_rate: u32) -> Option<Arc<ServoSerialMan
     }
 }
 
+fn publish_tts(publisher: &r2r::Publisher<StringMsg>, text: impl Into<String>) {
+    if let Err(e) = publisher.publish(&StringMsg { data: text.into() }) {
+        eprintln!("⚠️ TTS 发布失败: {}", e);
+    }
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
@@ -124,6 +130,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let cmd_hex = &req.message.command;
 
         println!("📥 收到指令: MAC={} CMD={}", target_mac, cmd_hex);
+        publish_tts(
+            &tts_publisher,
+            format!("已发现设备，正在连接。设备地址 {}", target_mac),
+        );
 
         // 🟢 [Fix 2] 调用新的通用执行方法 connect_and_execute
         let result = mgr
@@ -132,12 +142,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let (success, msg) = match result {
             Ok(info) => {
+                publish_tts(&tts_publisher, "蓝牙设备连接成功，正在查询设备参数。");
                 if let Some(tts) = info.tts {
-                    let _ = tts_publisher.publish(&StringMsg { data: tts });
+                    publish_tts(&tts_publisher, tts);
                 }
                 (true, info.message)
             }
-            Err(e) => (false, e.to_string()),
+            Err(e) => {
+                publish_tts(&tts_publisher, "蓝牙设备连接失败，请重试。");
+                (false, e.to_string())
+            }
         };
 
         println!("🔄 执行结果: {} ({})", success, msg);
