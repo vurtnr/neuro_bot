@@ -19,6 +19,7 @@ import time
 import struct
 import copy
 import subprocess
+from audio_engine.echo_guard import RecentSpeechGuard
 
 # === 🛠️ 导入官方协议库 ===
 try:
@@ -60,6 +61,7 @@ SAMPLE_RATE = 16000
 CHANNELS = 1
 DTYPE = 'int16'
 CHUNK_SIZE = 1024 
+ECHO_GUARD_SECONDS = float(os.getenv("ASR_TTS_ECHO_GUARD_SECONDS", "6.0"))
 
 class AudioNode(Node):
     def __init__(self):
@@ -76,6 +78,7 @@ class AudioNode(Node):
         self.is_speaking = False
         self.audio_queue = asyncio.Queue()
         self.asr_needs_reset = asyncio.Event()
+        self.echo_guard = RecentSpeechGuard(window_seconds=ECHO_GUARD_SECONDS)
 
         self.loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._start_loop, daemon=True)
@@ -102,6 +105,7 @@ class AudioNode(Node):
     async def run_tts_pipeline_v3(self, text):
         self.is_speaking = True
         self.asr_needs_reset.set() # 强制中断 ASR
+        played_audio = False
         
         self.get_logger().info("🔒 Muting Mic for TTS...")
 
@@ -151,10 +155,17 @@ class AudioNode(Node):
                     with open(filename, "wb") as f: f.write(audio_buffer)
                     self.get_logger().info(f"▶️ Playing...")
                     subprocess.run(["aplay", "-D", PLAYBACK_DEVICE, "-q", filename])
+                    self.echo_guard.remember_tts(
+                        text,
+                        playback_finished_at=time.monotonic(),
+                    )
+                    played_audio = True
                 
         except Exception as e:
             self.get_logger().error(f"TTS Failed: {e}")
         finally:
+            if not played_audio:
+                self.echo_guard.clear()
             self.get_logger().info("🔓 Unmuting Mic...")
             self.is_speaking = False
 
@@ -274,6 +285,10 @@ class AudioNode(Node):
             except Exception: pass
 
     def publish_final(self, text):
+        if self.echo_guard.should_ignore_asr(text, now=time.monotonic()):
+            self.get_logger().info(f"🛑 Ignored self-TTS transcript: {text}")
+            return
+
         self.get_logger().info(f"\n🗣️ Final: {text}")
         msg = AudioSpeech(); msg.text = text; msg.confidence = 0.99; msg.is_final = True
         self.speech_pub.publish(msg)
