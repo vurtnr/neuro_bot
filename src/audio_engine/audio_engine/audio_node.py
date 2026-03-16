@@ -19,7 +19,7 @@ import time
 import struct
 import copy
 import subprocess
-from audio_engine.echo_guard import RecentSpeechGuard
+from audio_engine.echo_guard import RecentSpeechGuard, SpeakingSessionCounter
 
 # === 🛠️ 导入官方协议库 ===
 try:
@@ -79,6 +79,7 @@ class AudioNode(Node):
         self.audio_queue = asyncio.Queue()
         self.asr_needs_reset = asyncio.Event()
         self.echo_guard = RecentSpeechGuard(window_seconds=ECHO_GUARD_SECONDS)
+        self.speaking_sessions = SpeakingSessionCounter()
 
         self.loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._start_loop, daemon=True)
@@ -103,11 +104,10 @@ class AudioNode(Node):
     # 👄 TTS Pipeline
     # ==========================================
     async def run_tts_pipeline_v3(self, text):
-        self.is_speaking = True
         self.asr_needs_reset.set() # 强制中断 ASR
-        played_audio = False
-        
-        self.get_logger().info("🔒 Muting Mic for TTS...")
+        if self.speaking_sessions.start_session():
+            self.is_speaking = True
+            self.get_logger().info("🔒 Muting Mic for TTS...")
 
         if "VOLC_TTS_RESOURCE_ID" in os.environ: del os.environ["VOLC_TTS_RESOURCE_ID"]
         headers = { "X-Api-App-Key": VOLC_APPID, "X-Api-Access-Key": VOLC_TOKEN, "X-Api-Resource-Id": TTS_RESOURCE_ID, "X-Api-Connect-Id": str(uuid.uuid4()) }
@@ -159,15 +159,13 @@ class AudioNode(Node):
                         text,
                         playback_finished_at=time.monotonic(),
                     )
-                    played_audio = True
                 
         except Exception as e:
             self.get_logger().error(f"TTS Failed: {e}")
         finally:
-            if not played_audio:
-                self.echo_guard.clear()
-            self.get_logger().info("🔓 Unmuting Mic...")
-            self.is_speaking = False
+            if self.speaking_sessions.finish_session():
+                self.get_logger().info("🔓 Unmuting Mic...")
+                self.is_speaking = False
 
     async def wait_for_event(self, ws, msg_type, event_type):
         while True:
