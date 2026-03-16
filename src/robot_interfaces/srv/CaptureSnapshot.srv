@@ -1,0 +1,12 @@
+string request_id
+string site_id
+string node_id
+string node_label
+---
+bool success
+string message
+string image_base64
+string mime_type
+string captured_at
+uint32 width
+uint32 height

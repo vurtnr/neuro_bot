@@ -29,6 +29,7 @@ set(srv_files
   "srv/AskLLM.srv"
   "srv/ConnectBluetooth.srv"
   "srv/StartInspection.srv"
+  "srv/CaptureSnapshot.srv"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

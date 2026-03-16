@@ -9,7 +9,11 @@ from threading import Thread
 
 import rclpy
 
-from inspection_bridge.ros_adapter import RosInspectionBridge, StartInspectionCommand
+from inspection_bridge.ros_adapter import (
+    CaptureSnapshotCommand,
+    RosInspectionBridge,
+    StartInspectionCommand,
+)
 from inspection_bridge.session_store import SessionStore
 
 
@@ -27,34 +31,26 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self) -> None:
-        if self.path != "/inspection-sessions/start":
-            self.send_error(HTTPStatus.NOT_FOUND)
+        if self.path == "/inspection-sessions/start":
+            self._handle_start_inspection()
             return
 
-        content_length = int(self.headers.get("Content-Length", "0"))
-        body = self.rfile.read(content_length) if content_length else b"{}"
-
-        try:
-            payload = json.loads(body.decode("utf-8"))
-        except json.JSONDecodeError:
-            self._write_json(
-                HTTPStatus.BAD_REQUEST,
-                {"accepted": False, "message": "invalid_json"},
-            )
+        if self.path == "/work-order-captures":
+            self._handle_capture_snapshot()
             return
 
-        request_id = str(payload.get("requestId", "")).strip()
-        site_id = str(payload.get("siteId", "")).strip()
-        node_id = str(payload.get("nodeId", "")).strip()
-        node_label = str(payload.get("nodeLabel", "")).strip()
+        self.send_error(HTTPStatus.NOT_FOUND)
 
-        if not request_id or not site_id or not node_id or not node_label:
-            self._write_json(
-                HTTPStatus.BAD_REQUEST,
-                {"accepted": False, "message": "missing_required_fields"},
-            )
+    def _handle_start_inspection(self) -> None:
+        payload = self._read_json_body()
+        if payload is None:
             return
 
+        required_fields = self._parse_required_fields(payload)
+        if required_fields is None:
+            return
+
+        request_id, site_id, node_id, node_label = required_fields
         self.server.session_store.ensure_session(request_id)
         accepted, message = self.server.ros_bridge.start_inspection(
             StartInspectionCommand(
@@ -86,6 +82,34 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
             HTTPStatus.ACCEPTED,
             {"accepted": True, "message": message, "requestId": request_id},
         )
+
+    def _handle_capture_snapshot(self) -> None:
+        payload = self._read_json_body()
+        if payload is None:
+            return
+
+        required_fields = self._parse_required_fields(payload)
+        if required_fields is None:
+            return
+
+        request_id, site_id, node_id, node_label = required_fields
+        result = self.server.ros_bridge.capture_snapshot(
+            CaptureSnapshotCommand(
+                request_id=request_id,
+                site_id=site_id,
+                node_id=node_id,
+                node_label=node_label,
+            )
+        )
+
+        if not result.get("success"):
+            self._write_json(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                result,
+            )
+            return
+
+        self._write_json(HTTPStatus.OK, result)
 
     def do_GET(self) -> None:
         prefix = "/inspection-sessions/"
@@ -132,6 +156,34 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args) -> None:
         self.server.ros_bridge.get_logger().info(format % args)
+
+    def _read_json_body(self) -> dict | None:
+        content_length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(content_length) if content_length else b"{}"
+
+        try:
+            return json.loads(body.decode("utf-8"))
+        except json.JSONDecodeError:
+            self._write_json(
+                HTTPStatus.BAD_REQUEST,
+                {"success": False, "message": "invalid_json"},
+            )
+            return None
+
+    def _parse_required_fields(self, payload: dict) -> tuple[str, str, str, str] | None:
+        request_id = str(payload.get("requestId", "")).strip()
+        site_id = str(payload.get("siteId", "")).strip()
+        node_id = str(payload.get("nodeId", "")).strip()
+        node_label = str(payload.get("nodeLabel", "")).strip()
+
+        if not request_id or not site_id or not node_id or not node_label:
+            self._write_json(
+                HTTPStatus.BAD_REQUEST,
+                {"success": False, "message": "missing_required_fields"},
+            )
+            return None
+
+        return request_id, site_id, node_id, node_label
 
     def _write_json(self, status: HTTPStatus, payload: dict) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")

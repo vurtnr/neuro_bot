@@ -6,7 +6,7 @@ import time
 import rclpy
 from rclpy.node import Node
 from robot_interfaces.msg import InspectionStatus
-from robot_interfaces.srv import StartInspection
+from robot_interfaces.srv import CaptureSnapshot, StartInspection
 
 from inspection_bridge.session_store import SessionStore
 
@@ -19,11 +19,22 @@ class StartInspectionCommand:
     node_label: str
 
 
+@dataclass
+class CaptureSnapshotCommand:
+    request_id: str
+    site_id: str
+    node_id: str
+    node_label: str
+
+
 class RosInspectionBridge(Node):
     def __init__(self, session_store: SessionStore) -> None:
         super().__init__("inspection_bridge")
         self.session_store = session_store
         self.client = self.create_client(StartInspection, "/inspection/start")
+        self.capture_client = self.create_client(
+            CaptureSnapshot, "/inspection/capture_snapshot"
+        )
         self.subscription = self.create_subscription(
             InspectionStatus,
             "/inspection/status",
@@ -53,6 +64,50 @@ class RosInspectionBridge(Node):
                 return response.accepted, response.message
             time.sleep(0.05)
         return False, "inspection service timeout"
+
+    def capture_snapshot(
+        self,
+        command: CaptureSnapshotCommand,
+        timeout_seconds: float = 5.0,
+    ) -> dict:
+        if not self.capture_client.wait_for_service(timeout_sec=timeout_seconds):
+            return {
+                "success": False,
+                "message": "capture service unavailable",
+            }
+
+        request = CaptureSnapshot.Request()
+        request.request_id = command.request_id
+        request.site_id = command.site_id
+        request.node_id = command.node_id
+        request.node_label = command.node_label
+
+        future = self.capture_client.call_async(request)
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            if future.done():
+                try:
+                    response = future.result()
+                except Exception as exc:
+                    return {
+                        "success": False,
+                        "message": f"capture service error: {exc}",
+                    }
+                return {
+                    "success": response.success,
+                    "message": response.message,
+                    "imageBase64": response.image_base64,
+                    "mimeType": response.mime_type,
+                    "capturedAt": response.captured_at,
+                    "width": response.width,
+                    "height": response.height,
+                }
+            time.sleep(0.05)
+
+        return {
+            "success": False,
+            "message": "capture service timeout",
+        }
 
     def _handle_status(self, msg: InspectionStatus) -> None:
         self.session_store.append_event(

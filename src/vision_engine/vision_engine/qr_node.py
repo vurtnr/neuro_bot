@@ -1,4 +1,5 @@
 import json
+from threading import Lock
 
 import cv2
 from cv_bridge import CvBridge
@@ -6,11 +7,13 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from robot_interfaces.msg import InspectionStatus, VisionResult
+from robot_interfaces.srv import CaptureSnapshot
 from sensor_msgs.msg import Image
 
 from vision_engine.inspection_gate import InspectionGate
 from vision_engine.qr_config import resolve_camera_topic
 from vision_engine.qr_dedupe import QrContentDeduper
+from vision_engine.snapshot_utils import build_snapshot_payload
 
 # 尝试导入 pyzbar
 try:
@@ -60,7 +63,14 @@ class QRNode(Node):
         )
 
         self.publisher_ = self.create_publisher(VisionResult, '/vision/result', 10)
+        self.snapshot_service = self.create_service(
+            CaptureSnapshot,
+            '/inspection/capture_snapshot',
+            self.handle_capture_snapshot,
+        )
         self.bridge = CvBridge()
+        self.frame_lock = Lock()
+        self.latest_frame = None
 
         # 调试开关
         self.last_log_time = 0
@@ -91,6 +101,8 @@ class QRNode(Node):
 
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+            with self.frame_lock:
+                self.latest_frame = cv_image.copy()
 
             # 图像增强: 转灰度 + 直方图均衡化 (对低分辨率极有帮助)
             gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
@@ -152,6 +164,37 @@ class QRNode(Node):
 
         except Exception as e:
             self.get_logger().error(f'System Error: {e}')
+
+    def handle_capture_snapshot(self, request, response):
+        with self.frame_lock:
+            frame = None if self.latest_frame is None else self.latest_frame.copy()
+
+        if frame is None:
+            response.success = False
+            response.message = 'no_camera_frame_available'
+            return response
+
+        try:
+            payload = build_snapshot_payload(frame)
+        except Exception as exc:
+            self.get_logger().error(f'抓拍失败: {exc}')
+            response.success = False
+            response.message = str(exc)
+            return response
+
+        response.success = True
+        response.message = (
+            f"captured_snapshot_for_{request.site_id}_{request.node_id}"
+        )
+        response.image_base64 = payload['image_base64']
+        response.mime_type = payload['mime_type']
+        response.captured_at = payload['captured_at']
+        response.width = payload['width']
+        response.height = payload['height']
+        self.get_logger().info(
+            f'📸 已抓拍: site={request.site_id} node={request.node_id} label={request.node_label}'
+        )
+        return response
 
     def handle_inspection_status(self, msg):
         self.inspection_gate.update(msg.request_id, msg.stage)
