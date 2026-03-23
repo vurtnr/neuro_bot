@@ -15,6 +15,9 @@ def test_gate_blocks_publish_until_session_becomes_active():
     assert gate.should_publish() is False
 
     gate.update("req-1", "accepted")
+    assert gate.should_publish() is False
+
+    gate.update("req-1", "waiting_for_qr")
     assert gate.should_publish() is True
 
 

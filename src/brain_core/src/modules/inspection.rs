@@ -9,6 +9,8 @@ const STAGE_BLE_CONNECTING: &str = "ble_connecting";
 const STAGE_QUERYING_DEVICE: &str = "querying_device";
 const STAGE_SUCCESS: &str = "success";
 const STAGE_FAILED: &str = "failed";
+const INSPECTION_START_ANNOUNCEMENT: &str =
+    "收到远程巡检任务，开始执行设备扫码。请将二维码保持在镜头范围内。";
 
 #[derive(Debug, Clone)]
 pub struct InspectionRequest {
@@ -30,12 +32,14 @@ pub struct InspectionStatusUpdate {
 #[derive(Debug, Clone)]
 pub enum Action {
     PublishStatus(InspectionStatusUpdate),
+    Speak(String),
     RequestBle(BleRequest),
 }
 
 #[derive(Debug, Clone)]
 pub enum Event {
     StartRequested(InspectionRequest),
+    AnnouncementFinished,
     VisionFound(NeuralLinkPayload),
     BleResult { success: bool, message: String },
 }
@@ -43,6 +47,7 @@ pub enum Event {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Mode {
     Idle,
+    AnnouncingScan,
     WaitingForQr,
     BleQuerying,
 }
@@ -50,6 +55,9 @@ pub enum Mode {
 #[derive(Debug, Clone)]
 enum SessionState {
     Idle,
+    AnnouncingScan {
+        request: InspectionRequest,
+    },
     WaitingForQr {
         request: InspectionRequest,
         deadline: Instant,
@@ -79,6 +87,57 @@ fn normalize_uuid_field(value: Option<String>) -> String {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn build_request() -> InspectionRequest {
+        InspectionRequest {
+            request_id: "req-1".to_string(),
+            site_id: "site-1".to_string(),
+            node_id: "cabinet-1".to_string(),
+            node_label: "储能电柜 E1".to_string(),
+        }
+    }
+
+    #[test]
+    fn start_announces_before_waiting_for_qr() {
+        let mut coordinator = InspectionCoordinator::new(Duration::from_secs(30));
+
+        let outcome = coordinator.start(build_request());
+
+        assert!(outcome.accepted);
+        assert_eq!(coordinator.mode(), Mode::AnnouncingScan);
+        assert!(matches!(
+            outcome.actions.first(),
+            Some(Action::PublishStatus(update)) if update.stage == STAGE_ACCEPTED
+        ));
+        assert!(matches!(
+            outcome.actions.get(1),
+            Some(Action::Speak(text))
+                if text == INSPECTION_START_ANNOUNCEMENT
+        ));
+        assert!(!outcome.actions.iter().any(|action| matches!(
+            action,
+            Action::PublishStatus(update) if update.stage == STAGE_WAITING_FOR_QR
+        )));
+    }
+
+    #[test]
+    fn announcement_finished_opens_waiting_for_qr_stage() {
+        let mut coordinator = InspectionCoordinator::new(Duration::from_secs(30));
+
+        let _ = coordinator.start(build_request());
+        let actions = coordinator.on_event(Event::AnnouncementFinished);
+
+        assert_eq!(coordinator.mode(), Mode::WaitingForQr);
+        assert!(matches!(
+            actions.first(),
+            Some(Action::PublishStatus(update)) if update.stage == STAGE_WAITING_FOR_QR
+        ));
+    }
+}
+
 fn normalize_command_field(value: Option<String>) -> String {
     let trimmed = value.unwrap_or_default().trim().to_string();
     if trimmed.is_empty() {
@@ -99,6 +158,7 @@ impl InspectionCoordinator {
     pub fn mode(&self) -> Mode {
         match &self.state {
             SessionState::Idle => Mode::Idle,
+            SessionState::AnnouncingScan { .. } => Mode::AnnouncingScan,
             SessionState::WaitingForQr { .. } => Mode::WaitingForQr,
             SessionState::BleQuerying { .. } => Mode::BleQuerying,
         }
@@ -129,11 +189,7 @@ impl InspectionCoordinator {
         match (self.state.clone(), event) {
             (SessionState::Idle, Event::StartRequested(request)) => {
                 let request_id = request.request_id.clone();
-                let node_label = request.node_label.clone();
-                self.state = SessionState::WaitingForQr {
-                    request,
-                    deadline: Instant::now() + self.scan_timeout,
-                };
+                self.state = SessionState::AnnouncingScan { request };
 
                 vec![
                     Action::PublishStatus(InspectionStatusUpdate {
@@ -143,14 +199,24 @@ impl InspectionCoordinator {
                         reason: String::new(),
                         message: "Inspection session accepted".to_string(),
                     }),
-                    Action::PublishStatus(InspectionStatusUpdate {
-                        request_id,
-                        stage: STAGE_WAITING_FOR_QR.to_string(),
-                        success: false,
-                        reason: String::new(),
-                        message: format!("Waiting for robot to identify {node_label}"),
-                    }),
+                    Action::Speak(INSPECTION_START_ANNOUNCEMENT.to_string()),
                 ]
+            }
+            (SessionState::AnnouncingScan { request }, Event::AnnouncementFinished) => {
+                let request_id = request.request_id.clone();
+                let node_label = request.node_label.clone();
+                self.state = SessionState::WaitingForQr {
+                    request,
+                    deadline: Instant::now() + self.scan_timeout,
+                };
+
+                vec![Action::PublishStatus(InspectionStatusUpdate {
+                    request_id,
+                    stage: STAGE_WAITING_FOR_QR.to_string(),
+                    success: false,
+                    reason: String::new(),
+                    message: format!("Waiting for robot to identify {node_label}"),
+                })]
             }
             (SessionState::WaitingForQr { request, .. }, Event::VisionFound(payload)) => {
                 let request_id = request.request_id.clone();

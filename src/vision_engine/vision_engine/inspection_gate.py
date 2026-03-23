@@ -1,6 +1,5 @@
 TERMINAL_STAGES = {"success", "failed"}
 ACTIVE_STAGES = {
-    "accepted",
     "waiting_for_qr",
     "qr_detected",
     "ble_connecting",

@@ -105,6 +105,7 @@ fn publish_inspection_status(
     update: InspectionStatusUpdate,
 ) {
     match update.stage.as_str() {
+        "accepted" => state_manager.set_busy("Preparing Inspection"),
         "waiting_for_qr" => state_manager.set_busy("Waiting for QR"),
         "qr_detected" => state_manager.set_busy("QR Detected"),
         "ble_connecting" => state_manager.set_busy("BLE Connecting"),
@@ -121,6 +122,10 @@ fn publish_inspection_status(
         message: update.message,
     };
     let _ = publisher.publish(&message);
+}
+
+fn estimate_speech_duration(text: &str) -> Duration {
+    Duration::from_secs(std::cmp::max(2, (text.chars().count() / 5) as u64))
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -175,6 +180,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut inspection = InspectionCoordinator::new(Duration::from_secs(30));
     let mut pending_control_ble: Option<Pin<Box<dyn Future<Output = BrainEvent>>>> = None;
     let mut pending_inspection_ble: Option<Pin<Box<dyn Future<Output = (bool, String)>>>> = None;
+    let mut pending_inspection_announcement_done: Option<Pin<Box<time::Sleep>>> = None;
     let mut pending_llm: Option<Pin<Box<dyn Future<Output = BrainEvent>>>> = None;
     let mut pending_audio_done: Option<Pin<Box<time::Sleep>>> = None;
 
@@ -190,6 +196,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match action {
                         InspectionAction::PublishStatus(update) => {
                             publish_inspection_status(&inspection_status_pub, &state_manager, update);
+                        }
+                        InspectionAction::Speak(text) => {
+                            let _ = tts_publisher.publish(&StringMsg { data: text.clone() });
+                            pending_inspection_announcement_done =
+                                Some(Box::pin(time::sleep(estimate_speech_duration(&text))));
                         }
                         InspectionAction::RequestBle(req) => {
                             if pending_inspection_ble.is_none() {
@@ -219,6 +230,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             InspectionAction::PublishStatus(update) => {
                                 publish_inspection_status(&inspection_status_pub, &state_manager, update);
                             }
+                            InspectionAction::Speak(text) => {
+                                let _ = tts_publisher.publish(&StringMsg { data: text.clone() });
+                                pending_inspection_announcement_done =
+                                    Some(Box::pin(time::sleep(estimate_speech_duration(&text))));
+                            }
                             InspectionAction::RequestBle(req) => {
                                 if pending_inspection_ble.is_none() {
                                     pending_inspection_ble = Some(spawn_inspection_ble_request(bt_client.clone(), req));
@@ -237,6 +253,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     match action {
                                         InspectionAction::PublishStatus(update) => {
                                             publish_inspection_status(&inspection_status_pub, &state_manager, update);
+                                        }
+                                        InspectionAction::Speak(text) => {
+                                            let _ = tts_publisher.publish(&StringMsg { data: text.clone() });
+                                            pending_inspection_announcement_done =
+                                                Some(Box::pin(time::sleep(estimate_speech_duration(&text))));
                                         }
                                         InspectionAction::RequestBle(req) => {
                                             if pending_inspection_ble.is_none() {
@@ -302,6 +323,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match action {
                         InspectionAction::PublishStatus(update) => {
                             publish_inspection_status(&inspection_status_pub, &state_manager, update);
+                        }
+                        InspectionAction::Speak(text) => {
+                            let _ = tts_publisher.publish(&StringMsg { data: text.clone() });
+                            pending_inspection_announcement_done =
+                                Some(Box::pin(time::sleep(estimate_speech_duration(&text))));
+                        }
+                        InspectionAction::RequestBle(req) => {
+                            if pending_inspection_ble.is_none() {
+                                pending_inspection_ble = Some(spawn_inspection_ble_request(bt_client.clone(), req));
+                            }
+                        }
+                    }
+                }
+            }
+            _ = async {
+                if let Some(fut) = pending_inspection_announcement_done.as_mut() {
+                    fut.as_mut().await
+                } else {
+                    pending::<()>().await
+                }
+            } => {
+                pending_inspection_announcement_done = None;
+                for action in inspection.on_event(InspectionEvent::AnnouncementFinished) {
+                    match action {
+                        InspectionAction::PublishStatus(update) => {
+                            publish_inspection_status(&inspection_status_pub, &state_manager, update);
+                        }
+                        InspectionAction::Speak(text) => {
+                            let _ = tts_publisher.publish(&StringMsg { data: text.clone() });
+                            pending_inspection_announcement_done =
+                                Some(Box::pin(time::sleep(estimate_speech_duration(&text))));
                         }
                         InspectionAction::RequestBle(req) => {
                             if pending_inspection_ble.is_none() {
