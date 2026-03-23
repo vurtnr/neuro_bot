@@ -22,19 +22,19 @@ pub struct BluetoothManager {
 
 impl BluetoothManager {
     pub fn new() -> Self {
-        Self { 
+        Self {
             target_device: None,
-            write_char: None, 
+            write_char: None,
         }
     }
 
     /// 核心连接函数：支持动态 UUID 或 自动发现可写特征值
     pub async fn connect_and_execute(
-        &mut self, 
-        mac_str: &str, 
+        &mut self,
+        mac_str: &str,
         service_uuid_str: &str,
         char_uuid_str: &str,
-        command_hex: &str
+        command_hex: &str,
     ) -> Result<BleExecutionResult, Box<dyn Error>> {
         // 1. 解析传入的 UUID (空/占位符则视为自动发现)
         let target_service_uuid = normalize_uuid_input(service_uuid_str)
@@ -61,7 +61,7 @@ impl BluetoothManager {
 
         for p in peripherals {
             let address_str = p.address().to_string().replace(":", "").to_uppercase();
-            
+
             if address_str == normalized_target {
                 println!("🔗 找到设备，正在连接...");
                 if let Err(e) = central.stop_scan().await {
@@ -69,32 +69,38 @@ impl BluetoothManager {
                 }
                 time::sleep(Duration::from_millis(200)).await;
                 Self::connect_with_retry(&p, 3).await?;
-                
+
                 println!("✅ 连接建立! 正在发现服务...");
                 p.discover_services().await?;
 
                 // 3. 动态寻找特征值
                 let chars = p.characteristics();
-                
+
                 // --- 核心修改：匹配逻辑升级 ---
                 // 寻找满足条件的特征值：
                 // A. 如果指定了 UUID，必须完全匹配
                 // B. 如果没指定 UUID，寻找第一个"可写"的特征值
-                let matched_char = chars.iter().find(|c| {
-                    match (target_service_uuid, target_char_uuid) {
-                        (Some(s_uuid), Some(c_uuid)) => {
-                            c.uuid == c_uuid && c.service_uuid == s_uuid
-                        },
-                        _ => {
-                            // 自动模式：只要能写就行
-                            c.properties.contains(CharPropFlags::WRITE) || 
-                            c.properties.contains(CharPropFlags::WRITE_WITHOUT_RESPONSE)
+                let matched_char = chars
+                    .iter()
+                    .find(|c| {
+                        match (target_service_uuid, target_char_uuid) {
+                            (Some(s_uuid), Some(c_uuid)) => {
+                                c.uuid == c_uuid && c.service_uuid == s_uuid
+                            }
+                            _ => {
+                                // 自动模式：只要能写就行
+                                c.properties.contains(CharPropFlags::WRITE)
+                                    || c.properties.contains(CharPropFlags::WRITE_WITHOUT_RESPONSE)
+                            }
                         }
-                    }
-                }).cloned();
+                    })
+                    .cloned();
 
                 if let Some(c) = matched_char {
-                    println!("✅ 锁定特征值: {:?} (Service: {:?})", c.uuid, c.service_uuid);
+                    println!(
+                        "✅ 锁定特征值: {:?} (Service: {:?})",
+                        c.uuid, c.service_uuid
+                    );
                     println!("   属性: {:?}", c.properties);
 
                     self.write_char = Some(c.clone());
@@ -148,7 +154,8 @@ impl BluetoothManager {
                             let mut stream = notifications.ok_or("❌ 未初始化通知流")?;
                             let deadline = time::Instant::now() + Duration::from_secs(5);
                             loop {
-                                let remaining = deadline.saturating_duration_since(time::Instant::now());
+                                let remaining =
+                                    deadline.saturating_duration_since(time::Instant::now());
                                 if remaining.is_zero() {
                                     return Err("❌ 未收到通知".into());
                                 }
@@ -181,12 +188,33 @@ impl BluetoothManager {
                         tts: None,
                     });
                 } else {
-                    return Err(format!("❌ 未找到合适的可写特征值 (UUID 指定: {:?})", char_uuid_str).into());
+                    return Err(format!(
+                        "❌ 未找到合适的可写特征值 (UUID 指定: {:?})",
+                        char_uuid_str
+                    )
+                    .into());
                 }
             }
         }
-        
+
         Err(format!("❌ 未扫描到设备: {}", mac_str).into())
+    }
+
+    pub async fn disconnect_current(&mut self) -> Result<String, Box<dyn Error>> {
+        let target_device = self.target_device.take();
+        self.write_char = None;
+
+        let Some(peripheral) = target_device else {
+            return Ok("当前无活动蓝牙连接".to_string());
+        };
+
+        if peripheral.is_connected().await.unwrap_or(false) {
+            peripheral.disconnect().await?;
+            println!("🔌 已断开当前蓝牙连接");
+            return Ok("蓝牙连接已断开".to_string());
+        }
+
+        Ok("当前蓝牙连接已处于断开状态".to_string())
     }
 
     async fn connect_with_retry(
@@ -241,12 +269,20 @@ impl BluetoothManager {
     }
 
     // 内部辅助：发送 Hex 字符串
-    async fn send_hex_command(&self, device: &Peripheral, characteristic: &Characteristic, hex_cmd: &str) -> Result<(), Box<dyn Error>> {
+    async fn send_hex_command(
+        &self,
+        device: &Peripheral,
+        characteristic: &Characteristic,
+        hex_cmd: &str,
+    ) -> Result<(), Box<dyn Error>> {
         let data = Self::hex_to_bytes(hex_cmd)?;
         println!("📤 发送 HEX: {:02X?}", data);
-        
+
         // --- 核心修改：根据特征值属性自动选择写入方式 ---
-        let write_type = if characteristic.properties.contains(CharPropFlags::WRITE_WITHOUT_RESPONSE) {
+        let write_type = if characteristic
+            .properties
+            .contains(CharPropFlags::WRITE_WITHOUT_RESPONSE)
+        {
             WriteType::WithoutResponse
         } else {
             WriteType::WithResponse
@@ -557,26 +593,23 @@ mod tests {
     fn valid_protocol_sample() -> [u8; 26] {
         // Precomputed valid protocol (rand0=0x12, rand1=0x34, tcu=0x0A).
         [
-            0x88, 0x11, 0x20, 0x12, 0x34, 0x15, 0x68, 0x4B, 0x17, 0x36,
-            0x5F, 0x7B, 0x73, 0x10, 0x4C, 0x1E, 0x3D, 0x2D, 0x0D, 0x05,
-            0x27, 0x71, 0x26, 0x04, 0x6C, 0x4F,
+            0x88, 0x11, 0x20, 0x12, 0x34, 0x15, 0x68, 0x4B, 0x17, 0x36, 0x5F, 0x7B, 0x73, 0x10,
+            0x4C, 0x1E, 0x3D, 0x2D, 0x0D, 0x05, 0x27, 0x71, 0x26, 0x04, 0x6C, 0x4F,
         ]
     }
 
     fn invalid_checksum_sample() -> [u8; 26] {
         // Example from docs (checksum intentionally invalid)
         [
-            0x88, 0x11, 0xA7, 0x12, 0x34, 0xE2, 0xC7, 0x83, 0xD7, 0xF0,
-            0x9C, 0x8D, 0xE8, 0xC5, 0x81, 0xD5, 0xF2, 0x9E, 0x8F, 0xE9,
-            0xC7, 0x83, 0xD6, 0x73, 0x06, 0x66,
+            0x88, 0x11, 0xA7, 0x12, 0x34, 0xE2, 0xC7, 0x83, 0xD7, 0xF0, 0x9C, 0x8D, 0xE8, 0xC5,
+            0x81, 0xD5, 0xF2, 0x9E, 0x8F, 0xE9, 0xC7, 0x83, 0xD6, 0x73, 0x06, 0x66,
         ]
     }
 
     fn manufacturer_value_without_header() -> [u8; 24] {
         [
-            0xA7, 0x12, 0x34, 0xE2, 0xC7, 0x83, 0xD7, 0xF0, 0x9C, 0x8D,
-            0xE8, 0xC5, 0x81, 0xD5, 0xF2, 0x9E, 0x8F, 0xE9, 0xC7, 0x83,
-            0xD6, 0x73, 0x06, 0x66,
+            0xA7, 0x12, 0x34, 0xE2, 0xC7, 0x83, 0xD7, 0xF0, 0x9C, 0x8D, 0xE8, 0xC5, 0x81, 0xD5,
+            0xF2, 0x9E, 0x8F, 0xE9, 0xC7, 0x83, 0xD6, 0x73, 0x06, 0x66,
         ]
     }
 
@@ -632,8 +665,7 @@ mod tests {
         let mut data = HashMap::new();
         let value = manufacturer_value_without_header();
         data.insert(0x1188, value.to_vec());
-        let protocol =
-            extract_protocol_from_manufacturer_data(&data).expect("protocol not found");
+        let protocol = extract_protocol_from_manufacturer_data(&data).expect("protocol not found");
         assert_eq!(protocol.len(), 26);
         assert_eq!(&protocol[..2], &[0x88, 0x11]);
         assert_eq!(&protocol[2..], value.as_slice());
@@ -644,8 +676,7 @@ mod tests {
         let mut data = HashMap::new();
         let value = invalid_checksum_sample().to_vec();
         data.insert(0x1188, value.clone());
-        let protocol =
-            extract_protocol_from_manufacturer_data(&data).expect("protocol not found");
+        let protocol = extract_protocol_from_manufacturer_data(&data).expect("protocol not found");
         assert_eq!(protocol, value);
     }
 

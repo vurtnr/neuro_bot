@@ -11,6 +11,7 @@ import rclpy
 
 from inspection_bridge.ros_adapter import (
     CaptureSnapshotCommand,
+    CompleteInspectionCommand,
     RosInspectionBridge,
     StartInspectionCommand,
 )
@@ -37,6 +38,10 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
 
         if self.path == "/work-order-captures":
             self._handle_capture_snapshot()
+            return
+
+        if self.path == "/work-order-completions":
+            self._handle_complete_work_order()
             return
 
         self.send_error(HTTPStatus.NOT_FOUND)
@@ -110,6 +115,37 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
             return
 
         self._write_json(HTTPStatus.OK, result)
+
+    def _handle_complete_work_order(self) -> None:
+        payload = self._read_json_body()
+        if payload is None:
+            return
+
+        required_fields = self._parse_required_fields(payload)
+        if required_fields is None:
+            return
+
+        request_id, site_id, node_id, node_label = required_fields
+        accepted, message = self.server.ros_bridge.complete_inspection(
+            CompleteInspectionCommand(
+                request_id=request_id,
+                site_id=site_id,
+                node_id=node_id,
+                node_label=node_label,
+            )
+        )
+
+        if not accepted:
+            self._write_json(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                {"success": False, "message": message},
+            )
+            return
+
+        self._write_json(
+            HTTPStatus.ACCEPTED,
+            {"success": True, "message": message},
+        )
 
     def do_GET(self) -> None:
         prefix = "/inspection-sessions/"

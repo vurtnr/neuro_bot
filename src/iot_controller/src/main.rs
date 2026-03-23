@@ -1,11 +1,11 @@
 mod modules;
-use modules::cellular::CellularManager;
-use modules::bluetooth::BluetoothManager;
-use modules::servo_serial::ServoSerialManager;
 use futures::StreamExt;
+use modules::bluetooth::BluetoothManager;
+use modules::cellular::CellularManager;
+use modules::servo_serial::ServoSerialManager;
 use r2r;
 use r2r::robot_interfaces::msg::{BodyCommand, NetworkStatus};
-use r2r::robot_interfaces::srv::ConnectBluetooth;
+use r2r::robot_interfaces::srv::{ConnectBluetooth, DisconnectBluetooth};
 use r2r::std_msgs::msg::String as StringMsg;
 use std::sync::Arc;
 use std::time::Duration;
@@ -81,6 +81,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "/iot/connect_bluetooth",
         r2r::QosProfile::services_default(),
     )?;
+    let mut disconnect_service = node.create_service::<DisconnectBluetooth::Service>(
+        "/iot/disconnect_bluetooth",
+        r2r::QosProfile::services_default(),
+    )?;
 
     let tts_publisher =
         node.create_publisher::<StringMsg>("/audio/tts_play", r2r::QosProfile::default())?;
@@ -120,44 +124,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         node.spin_once(Duration::from_millis(100));
     });
 
-    while let Some(req) = connect_service.next().await {
-        let mut mgr = bt_manager.lock().await;
+    loop {
+        tokio::select! {
+            req = connect_service.next() => {
+                let Some(req) = req else {
+                    break;
+                };
+                let mut mgr = bt_manager.lock().await;
 
-        // 🟢 [Fix 1] 适配新字段: 从 req.message 中获取 mac, service_uuid, characteristic_uuid, command
-        let target_mac = &req.message.mac;
-        let service_uuid = &req.message.service_uuid;
-        let char_uuid = &req.message.characteristic_uuid;
-        let cmd_hex = &req.message.command;
+                let target_mac = &req.message.mac;
+                let service_uuid = &req.message.service_uuid;
+                let char_uuid = &req.message.characteristic_uuid;
+                let cmd_hex = &req.message.command;
 
-        println!("📥 收到指令: MAC={} CMD={}", target_mac, cmd_hex);
-        publish_tts(
-            &tts_publisher,
-            format!("已发现设备，正在连接。设备地址 {}", target_mac),
-        );
+                println!("📥 收到指令: MAC={} CMD={}", target_mac, cmd_hex);
+                publish_tts(
+                    &tts_publisher,
+                    format!("已发现设备，正在连接。设备地址 {}", target_mac),
+                );
 
-        // 🟢 [Fix 2] 调用新的通用执行方法 connect_and_execute
-        let result = mgr
-            .connect_and_execute(target_mac, service_uuid, char_uuid, cmd_hex)
-            .await;
+                let result = mgr
+                    .connect_and_execute(target_mac, service_uuid, char_uuid, cmd_hex)
+                    .await;
 
-        let (success, msg) = match result {
-            Ok(info) => {
-                publish_tts(&tts_publisher, "蓝牙设备连接成功，正在查询设备参数。");
-                if let Some(tts) = info.tts {
-                    publish_tts(&tts_publisher, tts);
-                }
-                (true, info.message)
+                let (success, msg) = match result {
+                    Ok(info) => {
+                        publish_tts(&tts_publisher, "蓝牙设备连接成功，正在查询设备参数。");
+                        if let Some(tts) = info.tts {
+                            publish_tts(&tts_publisher, tts);
+                        }
+                        (true, info.message)
+                    }
+                    Err(e) => {
+                        publish_tts(&tts_publisher, "蓝牙设备连接失败，请重试。");
+                        (false, e.to_string())
+                    }
+                };
+
+                println!("🔄 执行结果: {} ({})", success, msg);
+                let _ = req.respond(ConnectBluetooth::Response { success, message: msg });
             }
-            Err(e) => {
-                publish_tts(&tts_publisher, "蓝牙设备连接失败，请重试。");
-                (false, e.to_string())
+            req = disconnect_service.next() => {
+                let Some(req) = req else {
+                    break;
+                };
+                let mut mgr = bt_manager.lock().await;
+                let result = mgr.disconnect_current().await;
+                let (success, message) = match result {
+                    Ok(message) => (true, message),
+                    Err(error) => (false, error.to_string()),
+                };
+                println!("🔌 断连结果: {} ({})", success, message);
+                let _ = req.respond(DisconnectBluetooth::Response { success, message });
             }
-        };
-
-        println!("🔄 执行结果: {} ({})", success, msg);
-
-        // 回复结果
-        let _ = req.respond(ConnectBluetooth::Response { success, message: msg });
+        }
     }
 
     spin_handle.await?;

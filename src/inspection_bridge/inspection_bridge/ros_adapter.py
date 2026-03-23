@@ -6,7 +6,7 @@ import time
 import rclpy
 from rclpy.node import Node
 from robot_interfaces.msg import InspectionStatus
-from robot_interfaces.srv import CaptureSnapshot, StartInspection
+from robot_interfaces.srv import CaptureSnapshot, CompleteInspection, StartInspection
 
 from inspection_bridge.session_store import SessionStore
 
@@ -27,6 +27,14 @@ class CaptureSnapshotCommand:
     node_label: str
 
 
+@dataclass
+class CompleteInspectionCommand:
+    request_id: str
+    site_id: str
+    node_id: str
+    node_label: str
+
+
 class RosInspectionBridge(Node):
     def __init__(self, session_store: SessionStore) -> None:
         super().__init__("inspection_bridge")
@@ -34,6 +42,9 @@ class RosInspectionBridge(Node):
         self.client = self.create_client(StartInspection, "/inspection/start")
         self.capture_client = self.create_client(
             CaptureSnapshot, "/inspection/capture_snapshot"
+        )
+        self.complete_client = self.create_client(
+            CompleteInspection, "/inspection/complete"
         )
         self.subscription = self.create_subscription(
             InspectionStatus,
@@ -108,6 +119,29 @@ class RosInspectionBridge(Node):
             "success": False,
             "message": "capture service timeout",
         }
+
+    def complete_inspection(
+        self,
+        command: CompleteInspectionCommand,
+        timeout_seconds: float = 5.0,
+    ) -> tuple[bool, str]:
+        if not self.complete_client.wait_for_service(timeout_sec=timeout_seconds):
+            return False, "complete inspection service unavailable"
+
+        request = CompleteInspection.Request()
+        request.request_id = command.request_id
+        request.site_id = command.site_id
+        request.node_id = command.node_id
+        request.node_label = command.node_label
+
+        future = self.complete_client.call_async(request)
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            if future.done():
+                response = future.result()
+                return response.accepted, response.message
+            time.sleep(0.05)
+        return False, "complete inspection service timeout"
 
     def _handle_status(self, msg: InspectionStatus) -> None:
         self.session_store.append_event(

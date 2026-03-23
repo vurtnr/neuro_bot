@@ -28,7 +28,9 @@ set(msg_files
 set(srv_files
   "srv/AskLLM.srv"
   "srv/ConnectBluetooth.srv"
+  "srv/DisconnectBluetooth.srv"
   "srv/StartInspection.srv"
+  "srv/CompleteInspection.srv"
   "srv/CaptureSnapshot.srv"
 )
 

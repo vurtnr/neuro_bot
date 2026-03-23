@@ -3,10 +3,10 @@
 use r2r;
 use r2r::robot_interfaces::msg::NetworkStatus;
 // use std::sync::{Arc, Mutex};
+use regex::Regex;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::{sleep, Duration};
 use tokio_serial::SerialPortBuilderExt;
-use regex::Regex;
 
 pub struct CellularManager {
     port_name: String,
@@ -24,7 +24,10 @@ impl CellularManager {
     }
 
     pub async fn run(&self, publisher: r2r::Publisher<NetworkStatus>) {
-        println!("📡 Cellular Module Started. Listening on {}", self.port_name);
+        println!(
+            "📡 Cellular Module Started. Listening on {}",
+            self.port_name
+        );
 
         // 正则表达式预编译
         let re_csq = Regex::new(r"\+CSQ: (\d+),(\d+)").unwrap();
@@ -47,11 +50,15 @@ impl CellularManager {
                         // === 循环查询任务 ===
 
                         // A. 查询信号
-                        if let Err(_) = port.write_all(b"AT+CSQ\r\n").await { break; }
+                        if let Err(_) = port.write_all(b"AT+CSQ\r\n").await {
+                            break;
+                        }
                         sleep(Duration::from_millis(100)).await; // 等待回复
 
                         // B. 查询 GPS
-                        if let Err(_) = port.write_all(b"AT+CGPSINFO\r\n").await { break; }
+                        if let Err(_) = port.write_all(b"AT+CGPSINFO\r\n").await {
+                            break;
+                        }
                         sleep(Duration::from_millis(200)).await; // 等待回复
 
                         // C. 读取数据
@@ -86,18 +93,22 @@ impl CellularManager {
                                     let lat_deg = (raw_lat / 100.0).floor();
                                     let lat_min = raw_lat % 100.0;
                                     status_msg.latitude = lat_deg + (lat_min / 60.0);
-                                    if &caps[2] == "S" { status_msg.latitude = -status_msg.latitude; }
+                                    if &caps[2] == "S" {
+                                        status_msg.latitude = -status_msg.latitude;
+                                    }
 
                                     let lon_deg = (raw_lon / 100.0).floor();
                                     let lon_min = raw_lon % 100.0;
                                     status_msg.longitude = lon_deg + (lon_min / 60.0);
-                                    if &caps[4] == "W" { status_msg.longitude = -status_msg.longitude; }
+                                    if &caps[4] == "W" {
+                                        status_msg.longitude = -status_msg.longitude;
+                                    }
                                 }
 
                                 // 发布 ROS 消息
                                 let _ = publisher.publish(&status_msg);
                             }
-                            Ok(_) => {}, // 空读取
+                            Ok(_) => {} // 空读取
                             Err(e) => {
                                 println!("❌ Serial Read Error: {}", e);
                                 break; // 跳出内层循环，触发重连
@@ -109,7 +120,10 @@ impl CellularManager {
                     }
                 }
                 Err(e) => {
-                    eprintln!("⚠️ Cannot open 4G port ({}): {}. Retrying in 5s...", self.port_name, e);
+                    eprintln!(
+                        "⚠️ Cannot open 4G port ({}): {}. Retrying in 5s...",
+                        self.port_name, e
+                    );
                     sleep(Duration::from_secs(5)).await;
                 }
             }

@@ -14,7 +14,9 @@ use r2r;
 use r2r::robot_interfaces::msg::{
     AudioSpeech, BodyCommand, InspectionStatus, NetworkStatus, VisionResult,
 };
-use r2r::robot_interfaces::srv::{AskLLM, ConnectBluetooth, StartInspection};
+use r2r::robot_interfaces::srv::{
+    AskLLM, CompleteInspection, ConnectBluetooth, DisconnectBluetooth, StartInspection,
+};
 use r2r::std_msgs::msg::String as StringMsg;
 use std::future::{pending, Future};
 use std::pin::Pin;
@@ -99,6 +101,40 @@ fn spawn_inspection_ble_request(
     })
 }
 
+fn spawn_disconnect_ble_request(
+    client: Arc<r2r::Client<DisconnectBluetooth::Service>>,
+) -> Pin<Box<dyn Future<Output = (bool, String)>>> {
+    Box::pin(async move {
+        println!("🔌 [inspection] 发起 BLE 断连请求");
+        let svc = DisconnectBluetooth::Request {};
+        match client.request(&svc) {
+            Ok(future) => match time::timeout(Duration::from_secs(15), future).await {
+                Ok(Ok(resp)) => {
+                    println!(
+                        "✅ [inspection] BLE 断连完成: success={} message={}",
+                        resp.success, resp.message
+                    );
+                    (resp.success, resp.message)
+                }
+                Ok(Err(e)) => {
+                    let message = format!("ROS Call Error: {}", e);
+                    eprintln!("❌ [inspection] {}", message);
+                    (false, message)
+                }
+                Err(_) => {
+                    eprintln!("❌ [inspection] BLE 断连超时");
+                    (false, "Disconnect timeout".to_string())
+                }
+            },
+            Err(e) => {
+                let message = format!("Client Request Error: {}", e);
+                eprintln!("❌ [inspection] {}", message);
+                (false, message)
+            }
+        }
+    })
+}
+
 fn publish_inspection_status(
     publisher: &r2r::Publisher<InspectionStatus>,
     state_manager: &StateManager,
@@ -128,6 +164,9 @@ fn estimate_speech_duration(text: &str) -> Duration {
     Duration::from_secs(std::cmp::max(2, (text.chars().count() / 5) as u64))
 }
 
+const COMPLETE_INSPECTION_ANNOUNCEMENT: &str =
+    "本次巡检处理完成，设备已归档。我将断开当前连接，等待下一次任务。";
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
@@ -150,6 +189,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "/iot/connect_bluetooth",
         r2r::QosProfile::default(),
     )?);
+    let disconnect_bt_client = Arc::new(node.create_client::<DisconnectBluetooth::Service>(
+        "/iot/disconnect_bluetooth",
+        r2r::QosProfile::default(),
+    )?);
     let llm_client = Arc::new(
         node.create_client::<AskLLM::Service>("/brain/ask_llm", r2r::QosProfile::default())?,
     );
@@ -162,6 +205,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         node.subscribe::<NetworkStatus>("/system/network_status", r2r::QosProfile::default())?;
     let mut inspection_service = node.create_service::<StartInspection::Service>(
         "/inspection/start",
+        r2r::QosProfile::services_default(),
+    )?;
+    let mut complete_inspection_service = node.create_service::<CompleteInspection::Service>(
+        "/inspection/complete",
         r2r::QosProfile::services_default(),
     )?;
 
@@ -181,6 +228,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut pending_control_ble: Option<Pin<Box<dyn Future<Output = BrainEvent>>>> = None;
     let mut pending_inspection_ble: Option<Pin<Box<dyn Future<Output = (bool, String)>>>> = None;
     let mut pending_inspection_announcement_done: Option<Pin<Box<time::Sleep>>> = None;
+    let mut pending_completion_announcement_done: Option<Pin<Box<time::Sleep>>> = None;
+    let mut pending_completion_disconnect: Option<Pin<Box<dyn Future<Output = (bool, String)>>>> =
+        None;
     let mut pending_llm: Option<Pin<Box<dyn Future<Output = BrainEvent>>>> = None;
     let mut pending_audio_done: Option<Pin<Box<time::Sleep>>> = None;
 
@@ -244,6 +294,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
+            req = complete_inspection_service.next() => {
+                if let Some(req) = req {
+                    println!(
+                        "🧾 [inspection] 收到工单完成指令: request_id={} site={} node={}",
+                        req.message.request_id,
+                        req.message.site_id,
+                        req.message.node_id,
+                    );
+                    state_manager.set_busy("Finishing Inspection");
+                    let _ = tts_publisher.publish(&StringMsg {
+                        data: COMPLETE_INSPECTION_ANNOUNCEMENT.to_string(),
+                    });
+                    pending_completion_announcement_done = Some(Box::pin(time::sleep(
+                        estimate_speech_duration(COMPLETE_INSPECTION_ANNOUNCEMENT),
+                    )));
+                    let _ = req.respond(CompleteInspection::Response {
+                        accepted: true,
+                        message: "inspection completion accepted".to_string(),
+                    });
+                }
+            }
             msg = vision_sub.next() => {
                 if let Some(msg) = msg {
                     if let Ok(payload) = serde_json::from_str::<NeuralLinkPayload>(&msg.content) {
@@ -273,6 +344,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
+            _ = async {
+                if let Some(fut) = pending_completion_announcement_done.as_mut() {
+                    fut.as_mut().await
+                } else {
+                    pending::<()>().await
+                }
+            } => {
+                pending_completion_announcement_done = None;
+                if pending_completion_disconnect.is_none() {
+                    pending_completion_disconnect = Some(
+                        spawn_disconnect_ble_request(disconnect_bt_client.clone())
+                    );
+                }
+            }
             msg = speech_sub.next() => {
                 if let Some(msg) = msg {
                     if msg.is_final {
@@ -297,6 +382,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         event_to_handle = Some(BrainEvent::AudioFinal(msg.text));
                     }
                 }
+            }
+            result = async {
+                if let Some(fut) = pending_completion_disconnect.as_mut() {
+                    fut.as_mut().await
+                } else {
+                    pending::<(bool, String)>().await
+                }
+            } => {
+                pending_completion_disconnect = None;
+                if result.0 {
+                    println!("✅ [inspection] 工单收尾完成: {}", result.1);
+                } else {
+                    eprintln!("❌ [inspection] 工单收尾断连失败: {}", result.1);
+                }
+                state_manager.set_idle();
             }
             event = async {
                 if let Some(fut) = pending_control_ble.as_mut() {
