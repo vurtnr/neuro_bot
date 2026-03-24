@@ -32,6 +32,7 @@ set(srv_files
   "srv/StartInspection.srv"
   "srv/CompleteInspection.srv"
   "srv/CaptureSnapshot.srv"
+  "srv/ManualAngleControl.srv"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

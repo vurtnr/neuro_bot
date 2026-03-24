@@ -12,6 +12,7 @@ import rclpy
 from inspection_bridge.ros_adapter import (
     CaptureSnapshotCommand,
     CompleteInspectionCommand,
+    ManualAngleControlCommand,
     RosInspectionBridge,
     StartInspectionCommand,
 )
@@ -42,6 +43,10 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
 
         if self.path == "/work-order-completions":
             self._handle_complete_work_order()
+            return
+
+        if self.path == "/manual-angle-controls":
+            self._handle_manual_angle_control()
             return
 
         self.send_error(HTTPStatus.NOT_FOUND)
@@ -146,6 +151,63 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
             HTTPStatus.ACCEPTED,
             {"success": True, "message": message},
         )
+
+    def _handle_manual_angle_control(self) -> None:
+        payload = self._read_json_body()
+        if payload is None:
+            return
+
+        required_fields = self._parse_required_fields(payload)
+        if required_fields is None:
+            return
+
+        direction = str(payload.get("direction", "")).strip().lower()
+        if direction not in {"west", "east"}:
+            self._write_json(
+                HTTPStatus.BAD_REQUEST,
+                {
+                    "success": False,
+                    "message": "invalid_direction",
+                    "errorCode": "invalid_direction",
+                },
+            )
+            return
+
+        raw_delta_angle = payload.get("deltaAngle")
+        has_delta_angle = raw_delta_angle is not None and raw_delta_angle != ""
+        delta_angle = 0
+
+        if has_delta_angle:
+            if isinstance(raw_delta_angle, bool) or not isinstance(raw_delta_angle, int):
+                self._write_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {
+                        "success": False,
+                        "message": "deltaAngle must be an integer",
+                        "errorCode": "invalid_delta_angle",
+                    },
+                )
+                return
+            delta_angle = raw_delta_angle
+
+        request_id, site_id, node_id, node_label = required_fields
+        result = self.server.ros_bridge.manual_angle_control(
+            ManualAngleControlCommand(
+                request_id=request_id,
+                site_id=site_id,
+                node_id=node_id,
+                node_label=node_label,
+                direction=direction,
+                has_delta_angle=has_delta_angle,
+                delta_angle=delta_angle,
+            )
+        )
+
+        if not result.get("success"):
+            self._write_json(HTTPStatus.CONFLICT, result)
+            return
+
+        self._write_json(HTTPStatus.OK, result)
 
     def do_GET(self) -> None:
         prefix = "/inspection-sessions/"

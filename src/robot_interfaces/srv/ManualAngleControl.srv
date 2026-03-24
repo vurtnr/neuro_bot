@@ -1,0 +1,14 @@
+string request_id
+string site_id
+string node_id
+string node_label
+string direction
+bool has_delta_angle
+int32 delta_angle
+---
+bool success
+string message
+string error_code
+float32 actual_angle_used
+int32 target_angle
+int32 delta_angle_used

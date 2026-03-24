@@ -5,7 +5,7 @@ use modules::cellular::CellularManager;
 use modules::servo_serial::ServoSerialManager;
 use r2r;
 use r2r::robot_interfaces::msg::{BodyCommand, NetworkStatus};
-use r2r::robot_interfaces::srv::{ConnectBluetooth, DisconnectBluetooth};
+use r2r::robot_interfaces::srv::{ConnectBluetooth, DisconnectBluetooth, ManualAngleControl};
 use r2r::std_msgs::msg::String as StringMsg;
 use std::sync::Arc;
 use std::time::Duration;
@@ -83,6 +83,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     let mut disconnect_service = node.create_service::<DisconnectBluetooth::Service>(
         "/iot/disconnect_bluetooth",
+        r2r::QosProfile::services_default(),
+    )?;
+    let mut manual_angle_service = node.create_service::<ManualAngleControl::Service>(
+        "/iot/manual_angle_control",
         r2r::QosProfile::services_default(),
     )?;
 
@@ -176,6 +180,71 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
                 println!("🔌 断连结果: {} ({})", success, message);
                 let _ = req.respond(DisconnectBluetooth::Response { success, message });
+            }
+            req = manual_angle_service.next() => {
+                let Some(req) = req else {
+                    break;
+                };
+
+                let mut mgr = bt_manager.lock().await;
+                let raw_delta_angle = if req.message.has_delta_angle {
+                    Some(req.message.delta_angle)
+                } else {
+                    None
+                };
+
+                println!(
+                    "🧭 收到姿态调整指令: direction={} delta_angle={:?}",
+                    req.message.direction,
+                    raw_delta_angle,
+                );
+                publish_tts(
+                    &tts_publisher,
+                    "已收到光伏姿态调整指令，正在读取当前角度并计算目标姿态。",
+                );
+
+                let result = mgr
+                    .execute_manual_angle(&req.message.direction, raw_delta_angle)
+                    .await;
+
+                let response = match result {
+                    Ok(info) => {
+                        if let Some(tts) = info.tts {
+                            publish_tts(&tts_publisher, tts);
+                        }
+                        println!(
+                            "✅ 姿态调整完成: actual_angle={:.1} target_angle={} delta_angle={}",
+                            info.actual_angle_used, info.target_angle, info.delta_angle_used
+                        );
+                        ManualAngleControl::Response {
+                            success: true,
+                            message: info.message,
+                            error_code: info.error_code,
+                            actual_angle_used: info.actual_angle_used,
+                            target_angle: info.target_angle,
+                            delta_angle_used: info.delta_angle_used,
+                        }
+                    }
+                    Err(error) => {
+                        if let Some(tts) = error.tts {
+                            publish_tts(&tts_publisher, tts);
+                        }
+                        eprintln!(
+                            "❌ 姿态调整失败: code={} message={}",
+                            error.error_code, error.message
+                        );
+                        ManualAngleControl::Response {
+                            success: false,
+                            message: error.message,
+                            error_code: error.error_code,
+                            actual_angle_used: 0.0,
+                            target_angle: 0,
+                            delta_angle_used: raw_delta_angle.unwrap_or(10),
+                        }
+                    }
+                };
+
+                let _ = req.respond(response);
             }
         }
     }

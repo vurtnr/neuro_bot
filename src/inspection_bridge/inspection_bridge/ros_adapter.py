@@ -6,7 +6,12 @@ import time
 import rclpy
 from rclpy.node import Node
 from robot_interfaces.msg import InspectionStatus
-from robot_interfaces.srv import CaptureSnapshot, CompleteInspection, StartInspection
+from robot_interfaces.srv import (
+    CaptureSnapshot,
+    CompleteInspection,
+    ManualAngleControl,
+    StartInspection,
+)
 
 from inspection_bridge.session_store import SessionStore
 
@@ -35,6 +40,17 @@ class CompleteInspectionCommand:
     node_label: str
 
 
+@dataclass
+class ManualAngleControlCommand:
+    request_id: str
+    site_id: str
+    node_id: str
+    node_label: str
+    direction: str
+    has_delta_angle: bool
+    delta_angle: int
+
+
 class RosInspectionBridge(Node):
     def __init__(self, session_store: SessionStore) -> None:
         super().__init__("inspection_bridge")
@@ -45,6 +61,9 @@ class RosInspectionBridge(Node):
         )
         self.complete_client = self.create_client(
             CompleteInspection, "/inspection/complete"
+        )
+        self.manual_angle_client = self.create_client(
+            ManualAngleControl, "/iot/manual_angle_control"
         )
         self.subscription = self.create_subscription(
             InspectionStatus,
@@ -142,6 +161,55 @@ class RosInspectionBridge(Node):
                 return response.accepted, response.message
             time.sleep(0.05)
         return False, "complete inspection service timeout"
+
+    def manual_angle_control(
+        self,
+        command: ManualAngleControlCommand,
+        timeout_seconds: float = 12.0,
+    ) -> dict:
+        if not self.manual_angle_client.wait_for_service(timeout_sec=timeout_seconds):
+            return {
+                "success": False,
+                "message": "manual angle service unavailable",
+                "errorCode": "service_unavailable",
+            }
+
+        request = ManualAngleControl.Request()
+        request.request_id = command.request_id
+        request.site_id = command.site_id
+        request.node_id = command.node_id
+        request.node_label = command.node_label
+        request.direction = command.direction
+        request.has_delta_angle = command.has_delta_angle
+        request.delta_angle = command.delta_angle
+
+        future = self.manual_angle_client.call_async(request)
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            if future.done():
+                try:
+                    response = future.result()
+                except Exception as exc:
+                    return {
+                        "success": False,
+                        "message": f"manual angle service error: {exc}",
+                        "errorCode": "service_call_error",
+                    }
+                return {
+                    "success": response.success,
+                    "message": response.message,
+                    "errorCode": response.error_code,
+                    "actualAngleUsed": response.actual_angle_used,
+                    "targetAngle": response.target_angle,
+                    "deltaAngleUsed": response.delta_angle_used,
+                }
+            time.sleep(0.05)
+
+        return {
+            "success": False,
+            "message": "manual angle service timeout",
+            "errorCode": "service_timeout",
+        }
 
     def _handle_status(self, msg: InspectionStatus) -> None:
         self.session_store.append_event(

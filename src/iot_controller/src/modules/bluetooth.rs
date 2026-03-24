@@ -3,16 +3,135 @@ use btleplug::api::{
 };
 use btleplug::platform::{Manager, Peripheral};
 use futures::StreamExt;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
+use std::fmt;
 use std::path::Path;
 use std::time::Duration;
 use tokio::time;
 use uuid::Uuid;
 
+const AUTO_MODE_TARGET_WORK_MODE: u16 = 0x0140;
+const MANUAL_DELTA_DEFAULT: i32 = 10;
+const MANUAL_DELTA_MIN: i32 = 0;
+const MANUAL_DELTA_MAX: i32 = 90;
+const MANUAL_TARGET_MIN: i32 = -128;
+const MANUAL_TARGET_MAX: i32 = 127;
+const NOTIFY_CHARACTERISTIC_UUID: &str = "0000FFF1-0000-1000-8000-00805F9B34FB";
+
 pub struct BleExecutionResult {
     pub message: String,
     pub tts: Option<String>,
+}
+
+pub struct ManualAngleExecutionResult {
+    pub message: String,
+    pub error_code: String,
+    pub actual_angle_used: f32,
+    pub target_angle: i32,
+    pub delta_angle_used: i32,
+    pub tts: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct ManualAngleFailure {
+    pub message: String,
+    pub error_code: String,
+    pub tts: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ManualAngleDirection {
+    West,
+    East,
+}
+
+impl ManualAngleDirection {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::West => "west",
+            Self::East => "east",
+        }
+    }
+
+    fn label(&self) -> &'static str {
+        match self {
+            Self::West => "向西",
+            Self::East => "向东",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ManualAngleValidationErrorKind {
+    InvalidDirection,
+    InvalidDeltaAngle,
+    TargetAngleOutOfRange,
+}
+
+#[derive(Debug, Clone)]
+struct ManualAngleValidationError {
+    kind: ManualAngleValidationErrorKind,
+    message: String,
+}
+
+impl fmt::Display for ManualAngleValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl Error for ManualAngleValidationError {}
+
+impl ManualAngleValidationError {
+    fn invalid_direction(direction: &str) -> Self {
+        Self {
+            kind: ManualAngleValidationErrorKind::InvalidDirection,
+            message: format!("不支持的姿态方向: {direction}"),
+        }
+    }
+
+    fn invalid_delta_angle(delta_angle: i32) -> Self {
+        Self {
+            kind: ManualAngleValidationErrorKind::InvalidDeltaAngle,
+            message: format!("手动角度仅支持 0 到 90 的整数，当前收到 {delta_angle}"),
+        }
+    }
+
+    fn target_angle_out_of_range(target_angle: i32) -> Self {
+        Self {
+            kind: ManualAngleValidationErrorKind::TargetAngleOutOfRange,
+            message: format!("目标角度超出协议可编码范围，当前计算结果为 {target_angle}°"),
+        }
+    }
+}
+
+impl From<ManualAngleValidationError> for ManualAngleFailure {
+    fn from(value: ManualAngleValidationError) -> Self {
+        let error_code = match value.kind {
+            ManualAngleValidationErrorKind::InvalidDirection => "invalid_direction",
+            ManualAngleValidationErrorKind::InvalidDeltaAngle => "invalid_delta_angle",
+            ManualAngleValidationErrorKind::TargetAngleOutOfRange => "target_angle_out_of_range",
+        };
+
+        let tts = match value.kind {
+            ManualAngleValidationErrorKind::InvalidDirection => {
+                Some("姿态调整方向无效，请重新选择向西或向东。".to_string())
+            }
+            ManualAngleValidationErrorKind::InvalidDeltaAngle => {
+                Some("姿态调整角度无效，请输入零到九十度的整数。".to_string())
+            }
+            ManualAngleValidationErrorKind::TargetAngleOutOfRange => {
+                Some("当前计算出的目标角度超出设备允许范围，本次调整已取消。".to_string())
+            }
+        };
+
+        Self {
+            message: value.to_string(),
+            error_code: error_code.to_string(),
+            tts,
+        }
+    }
 }
 
 pub struct BluetoothManager {
@@ -217,6 +336,91 @@ impl BluetoothManager {
         Ok("当前蓝牙连接已处于断开状态".to_string())
     }
 
+    pub async fn execute_manual_angle(
+        &mut self,
+        direction: &str,
+        raw_delta_angle: Option<i32>,
+    ) -> Result<ManualAngleExecutionResult, ManualAngleFailure> {
+        let direction = parse_manual_angle_direction(direction)?;
+        let delta_angle = normalize_manual_delta_angle(raw_delta_angle)?;
+
+        let Some(peripheral) = self.target_device.clone() else {
+            return Err(ManualAngleFailure {
+                message: "当前没有已连接的设备，无法执行姿态调整。".to_string(),
+                error_code: "device_not_connected".to_string(),
+                tts: Some("当前还没有连接设备，暂时不能执行姿态调整。".to_string()),
+            });
+        };
+
+        if !peripheral.is_connected().await.unwrap_or(false) {
+            self.target_device = None;
+            self.write_char = None;
+            return Err(ManualAngleFailure {
+                message: "蓝牙设备当前未连接，请重新扫码并连接设备。".to_string(),
+                error_code: "device_not_connected".to_string(),
+                tts: Some("设备连接已经断开，请重新扫码后再试。".to_string()),
+            });
+        }
+
+        let Some(write_char) = self.write_char.clone() else {
+            return Err(ManualAngleFailure {
+                message: "当前连接缺少可写通道，无法执行姿态调整。".to_string(),
+                error_code: "missing_write_characteristic".to_string(),
+                tts: Some("当前设备缺少可写通道，本次姿态调整无法执行。".to_string()),
+            });
+        };
+
+        let tcu_address = self
+            .resolve_current_tcu_address(&peripheral)
+            .await
+            .map_err(|error| ManualAngleFailure {
+                message: format!("无法获取当前设备的 TCU 地址: {error}"),
+                error_code: "missing_tcu_address".to_string(),
+                tts: Some("当前设备地址信息不完整，无法执行姿态调整。".to_string()),
+            })?;
+
+        let query_result = self
+            .query_current_state(&peripheral, &write_char, tcu_address)
+            .await
+            .map_err(|error| ManualAngleFailure {
+                message: format!("读取当前设备角度失败: {error}"),
+                error_code: "query_failed".to_string(),
+                tts: Some("当前设备状态读取失败，本次姿态调整已取消。".to_string()),
+            })?;
+
+        let target_angle = compute_manual_target_angle(
+            query_result.actual_angle,
+            direction.as_str(),
+            delta_angle,
+        )?;
+        let command_hex = build_manual_angle_command(tcu_address, target_angle)
+            .map_err(ManualAngleFailure::from)?;
+
+        self.send_hex_command(&peripheral, &write_char, &command_hex)
+            .await
+            .map_err(|error| ManualAngleFailure {
+                message: format!("姿态调整指令下发失败: {error}"),
+                error_code: "command_write_failed".to_string(),
+                tts: Some("姿态调整指令发送失败，请稍后重试。".to_string()),
+            })?;
+
+        let direction_text = direction.label();
+        Ok(ManualAngleExecutionResult {
+            message: format!(
+                "已按当前实际角度 {:.1}° 计算目标角度 {}°，{}调整指令已下发。",
+                query_result.actual_angle, target_angle, direction_text
+            ),
+            error_code: String::new(),
+            actual_angle_used: query_result.actual_angle,
+            target_angle,
+            delta_angle_used: delta_angle,
+            tts: Some(format!(
+                "已读取当前角度 {:.1} 度，{}调整 {} 度，目标角度 {} 度，指令已下发。",
+                query_result.actual_angle, direction_text, delta_angle, target_angle
+            )),
+        })
+    }
+
     async fn connect_with_retry(
         peripheral: &Peripheral,
         max_attempts: usize,
@@ -266,6 +470,75 @@ impl BluetoothManager {
         let tcu = parse_tcu_from_protocol(&protocol)?;
         println!("🧩 解析 TCU 地址: {}", tcu);
         Ok(tcu)
+    }
+
+    async fn resolve_current_tcu_address(
+        &self,
+        peripheral: &Peripheral,
+    ) -> Result<u8, Box<dyn Error>> {
+        if let Ok(info) = load_persisted_device_info() {
+            let current_mac = normalize_mac(&peripheral.address().to_string());
+            if normalize_mac(&info.mac) == current_mac {
+                return Ok(info.tcu);
+            }
+        }
+
+        self.resolve_tcu_from_advertisement(peripheral).await
+    }
+
+    async fn query_current_state(
+        &self,
+        peripheral: &Peripheral,
+        characteristic: &Characteristic,
+        tcu_address: u8,
+    ) -> Result<ParsedResponse, Box<dyn Error>> {
+        let notify_uuid = Uuid::parse_str(NOTIFY_CHARACTERISTIC_UUID)?;
+        let notify_char = peripheral
+            .characteristics()
+            .iter()
+            .find(|c| c.uuid == notify_uuid)
+            .cloned()
+            .ok_or("❌ 未找到通知特征值")?;
+
+        if !(notify_char.properties.contains(CharPropFlags::NOTIFY)
+            || notify_char.properties.contains(CharPropFlags::INDICATE))
+        {
+            return Err("❌ 通知特征值不支持通知".into());
+        }
+
+        peripheral.subscribe(&notify_char).await?;
+        let result = async {
+            let mut notifications = peripheral.notifications().await?;
+            let query_command = build_query_command(tcu_address);
+            self.send_hex_command(peripheral, characteristic, &query_command)
+                .await?;
+
+            let deadline = time::Instant::now() + Duration::from_secs(5);
+            loop {
+                let remaining = deadline.saturating_duration_since(time::Instant::now());
+                if remaining.is_zero() {
+                    return Err("❌ 未收到设备查询响应".into());
+                }
+
+                let next = time::timeout(remaining, notifications.next()).await;
+                let notification = match next {
+                    Ok(Some(value)) => value,
+                    Ok(None) => return Err("❌ 通知流结束".into()),
+                    Err(_) => return Err("❌ 未收到设备查询响应".into()),
+                };
+
+                if notification.uuid != notify_uuid {
+                    continue;
+                }
+
+                println!("📥 收到设备查询响应: {:02X?}", notification.value);
+                return parse_response_payload(&notification.value);
+            }
+        }
+        .await;
+
+        let _ = peripheral.unsubscribe(&notify_char).await;
+        result
     }
 
     // 内部辅助：发送 Hex 字符串
@@ -329,6 +602,79 @@ fn build_query_command(tcu_address: u8) -> String {
         .iter()
         .map(|b| format!("{:02X}", b))
         .collect::<String>()
+}
+
+fn parse_manual_angle_direction(
+    direction: &str,
+) -> Result<ManualAngleDirection, ManualAngleFailure> {
+    match direction.trim().to_ascii_lowercase().as_str() {
+        "west" => Ok(ManualAngleDirection::West),
+        "east" => Ok(ManualAngleDirection::East),
+        other => Err(ManualAngleValidationError::invalid_direction(other).into()),
+    }
+}
+
+fn normalize_manual_delta_angle(
+    raw_delta_angle: Option<i32>,
+) -> Result<i32, ManualAngleValidationError> {
+    let delta_angle = raw_delta_angle.unwrap_or(MANUAL_DELTA_DEFAULT);
+    if !(MANUAL_DELTA_MIN..=MANUAL_DELTA_MAX).contains(&delta_angle) {
+        return Err(ManualAngleValidationError::invalid_delta_angle(delta_angle));
+    }
+    Ok(delta_angle)
+}
+
+fn compute_manual_target_angle(
+    actual_angle: f32,
+    direction: &str,
+    delta_angle: i32,
+) -> Result<i32, ManualAngleValidationError> {
+    let rounded_actual_angle = actual_angle.round() as i32;
+    let direction =
+        parse_manual_angle_direction(direction).map_err(|error| ManualAngleValidationError {
+            kind: ManualAngleValidationErrorKind::InvalidDirection,
+            message: error.message,
+        })?;
+
+    let target_angle = match direction {
+        ManualAngleDirection::West => rounded_actual_angle + delta_angle,
+        ManualAngleDirection::East => rounded_actual_angle - delta_angle,
+    };
+
+    if !(MANUAL_TARGET_MIN..=MANUAL_TARGET_MAX).contains(&target_angle) {
+        return Err(ManualAngleValidationError::target_angle_out_of_range(
+            target_angle,
+        ));
+    }
+
+    Ok(target_angle)
+}
+
+fn build_manual_angle_command(
+    tcu_address: u8,
+    target_angle: i32,
+) -> Result<String, ManualAngleValidationError> {
+    if !(MANUAL_TARGET_MIN..=MANUAL_TARGET_MAX).contains(&target_angle) {
+        return Err(ManualAngleValidationError::target_angle_out_of_range(
+            target_angle,
+        ));
+    }
+
+    let mut payload = vec![
+        tcu_address,
+        0x06,
+        0x08,
+        (AUTO_MODE_TARGET_WORK_MODE >> 8) as u8,
+        (AUTO_MODE_TARGET_WORK_MODE & 0xFF) as u8,
+        (target_angle as i8) as u8,
+    ];
+    let crc = crc16_modbus(&payload);
+    payload.push((crc & 0xFF) as u8);
+    payload.push((crc >> 8) as u8);
+    Ok(payload
+        .iter()
+        .map(|b| format!("{:02X}", b))
+        .collect::<String>())
 }
 
 fn verify_protocol_checksum(protocol: &[u8]) -> bool {
@@ -409,10 +755,21 @@ fn extract_protocol_from_manufacturer_data(
     None
 }
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize)]
 struct PersistedDeviceInfo {
     mac: String,
     tcu: u8,
+}
+
+fn load_persisted_device_info() -> Result<PersistedDeviceInfo, Box<dyn Error>> {
+    let path = Path::new("/neuro_bot_ws/data/ble_devices.json");
+    let content = std::fs::read_to_string(path)?;
+    let info = serde_json::from_str::<PersistedDeviceInfo>(&content)?;
+    Ok(info)
+}
+
+fn normalize_mac(value: &str) -> String {
+    value.replace(":", "").to_uppercase()
 }
 
 fn persist_device_info(mac: &str, tcu: u8) -> Result<(), Box<dyn Error>> {
@@ -582,7 +939,8 @@ fn normalize_command_input(value: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_query_command, extract_protocol_from_manufacturer_data, fault_code_to_text,
+        build_manual_angle_command, build_query_command, compute_manual_target_angle,
+        extract_protocol_from_manufacturer_data, fault_code_to_text, normalize_manual_delta_angle,
         parse_response_payload, parse_tcu_from_protocol, persist_device_info_to_path,
         verify_protocol_checksum, verify_response_crc,
     };
@@ -658,6 +1016,36 @@ mod tests {
     fn query_command_uses_crc16() {
         let cmd = build_query_command(0x0A);
         assert_eq!(cmd, "0A0300000025856A");
+    }
+
+    #[test]
+    fn manual_delta_defaults_to_ten_when_missing() {
+        let delta = normalize_manual_delta_angle(None).expect("delta should default");
+        assert_eq!(delta, 10);
+    }
+
+    #[test]
+    fn manual_delta_rejects_out_of_range_values() {
+        let error = normalize_manual_delta_angle(Some(91)).expect_err("delta should fail");
+        assert!(error.contains("0 到 90"));
+    }
+
+    #[test]
+    fn manual_target_angle_uses_rounded_actual_angle() {
+        let target = compute_manual_target_angle(12.6, "west", 5).expect("target should compute");
+        assert_eq!(target, 18);
+    }
+
+    #[test]
+    fn manual_target_angle_rejects_protocol_overflow() {
+        let error = compute_manual_target_angle(120.4, "west", 10).expect_err("should reject");
+        assert!(error.contains("目标角度超出"));
+    }
+
+    #[test]
+    fn manual_angle_command_uses_signed_angle_and_crc() {
+        let cmd = build_manual_angle_command(0x01, -2).expect("command should build");
+        assert_eq!(cmd, "0106080140FE6A2A");
     }
 
     #[test]
