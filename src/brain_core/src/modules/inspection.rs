@@ -166,7 +166,7 @@ mod tests {
 
         let actions = coordinator.on_event(Event::BleResult {
             success: true,
-            message: "Inspection completed successfully".to_string(),
+            message: "inspection_query_ok actual_angle=12.1 target_angle=12.3".to_string(),
             angle_snapshot: Some(InspectionAngleSnapshot {
                 actual_angle: 12.1,
                 target_angle: 12.3,
@@ -179,6 +179,7 @@ mod tests {
             Some(Action::PublishStatus(update))
                 if update.stage == STAGE_SUCCESS
                 && update.success
+                && update.message == "inspection_query_ok actual_angle=12.1 target_angle=12.3"
                 && matches!(
                     update.angle_snapshot.as_ref(),
                     Some(snapshot)
@@ -328,7 +329,7 @@ impl InspectionCoordinator {
                         stage: STAGE_SUCCESS.to_string(),
                         success: true,
                         reason: String::new(),
-                        message: "Inspection completed successfully".to_string(),
+                        message,
                         angle_snapshot,
                     })]
                 } else {

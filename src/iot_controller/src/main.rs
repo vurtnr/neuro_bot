@@ -157,9 +157,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if let Some(tts) = info.tts {
                             publish_tts(&tts_publisher, tts);
                         }
+                        let response_message = match (info.actual_angle, info.target_angle) {
+                            (Some(actual_angle), Some(target_angle)) => format!(
+                                "inspection_query_ok actual_angle={actual_angle:.1} target_angle={target_angle:.1}"
+                            ),
+                            _ => info.message,
+                        };
                         let response = ConnectBluetooth::Response {
                             success: true,
-                            message: info.message,
+                            message: response_message,
                             has_device_angles: info.actual_angle.is_some() && info.target_angle.is_some(),
                             actual_angle: info.actual_angle.unwrap_or(0.0),
                             target_angle: info.target_angle.unwrap_or(0.0),
