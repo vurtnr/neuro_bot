@@ -1,7 +1,7 @@
 use btleplug::api::{
     Central, CharPropFlags, Characteristic, Manager as _, Peripheral as _, ScanFilter, WriteType,
 };
-use btleplug::platform::{Manager, Peripheral};
+use btleplug::platform::{Adapter, Manager, Peripheral};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -22,6 +22,8 @@ const MANUAL_VERIFICATION_MIN_DELTA: f32 = 0.5;
 const MANUAL_VERIFICATION_TARGET_TOLERANCE: f32 = 1.5;
 const MANUAL_VERIFICATION_MAX_ATTEMPTS: usize = 3;
 const MANUAL_VERIFICATION_DELAY_MS: u64 = 1200;
+const BLE_SCAN_ATTEMPTS: usize = 3;
+const BLE_SCAN_WINDOW_SECS: u64 = 5;
 
 pub struct BleExecutionResult {
     pub message: String,
@@ -174,155 +176,153 @@ impl BluetoothManager {
 
         let manager = Manager::new().await?;
         let adapters = manager.adapters().await?;
-        let central = adapters.into_iter().nth(0).ok_or("❌ 未找到蓝牙适配器")?;
+        if adapters.is_empty() {
+            return Err("❌ 未找到蓝牙适配器".into());
+        }
 
-        // 2. 扫描设备
-        println!("📡 扫描目标: {} (5s)...", mac_str);
-        central.start_scan(ScanFilter::default()).await?;
-        time::sleep(Duration::from_secs(5)).await; // 扫描 5 秒
+        let normalized_target = normalize_mac(mac_str);
+        let mut matched: Option<(Adapter, Peripheral)> = None;
 
-        let peripherals = central.peripherals().await?;
-        let normalized_target = mac_str.replace(":", "").to_uppercase();
-
-        for p in peripherals {
-            let address_str = p.address().to_string().replace(":", "").to_uppercase();
-
-            if address_str == normalized_target {
-                println!("🔗 找到设备，正在连接...");
-                if let Err(e) = central.stop_scan().await {
-                    eprintln!("⚠️ 停止扫描失败: {}", e);
-                }
-                time::sleep(Duration::from_millis(200)).await;
-                Self::connect_with_retry(&p, 3).await?;
-
-                println!("✅ 连接建立! 正在发现服务...");
-                p.discover_services().await?;
-
-                // 3. 动态寻找特征值
-                let chars = p.characteristics();
-
-                // --- 核心修改：匹配逻辑升级 ---
-                // 寻找满足条件的特征值：
-                // A. 如果指定了 UUID，必须完全匹配
-                // B. 如果没指定 UUID，寻找第一个"可写"的特征值
-                let matched_char = chars
-                    .iter()
-                    .find(|c| {
-                        match (target_service_uuid, target_char_uuid) {
-                            (Some(s_uuid), Some(c_uuid)) => {
-                                c.uuid == c_uuid && c.service_uuid == s_uuid
-                            }
-                            _ => {
-                                // 自动模式：只要能写就行
-                                c.properties.contains(CharPropFlags::WRITE)
-                                    || c.properties.contains(CharPropFlags::WRITE_WITHOUT_RESPONSE)
-                            }
-                        }
-                    })
-                    .cloned();
-
-                if let Some(c) = matched_char {
-                    println!(
-                        "✅ 锁定特征值: {:?} (Service: {:?})",
-                        c.uuid, c.service_uuid
-                    );
-                    println!("   属性: {:?}", c.properties);
-
-                    self.write_char = Some(c.clone());
-                    self.target_device = Some(p.clone());
-
-                    if command_hex.is_empty() {
-                        let tcu = self.resolve_tcu_from_advertisement(&p).await?;
-                        if let Err(e) = persist_device_info(mac_str, tcu) {
-                            eprintln!("⚠️ 持久化设备信息失败: {}", e);
-                        } else {
-                            println!("💾 已保存设备信息: MAC={}, TCU={}", mac_str, tcu);
-                        }
-                        command_hex = build_query_command(tcu);
-                        println!("🧩 生成查询指令: {}", command_hex);
-                    }
-
-                    let command_bytes = if command_hex.is_empty() {
-                        None
-                    } else {
-                        Some(Self::hex_to_bytes(&command_hex)?)
-                    };
-                    let expects_response = command_bytes
-                        .as_ref()
-                        .map(|bytes| bytes.len() >= 2 && bytes[1] == 0x03)
-                        .unwrap_or(false);
-
-                    let notify_uuid = Uuid::parse_str("0000FFF1-0000-1000-8000-00805F9B34FB")?;
-                    let notify_char = chars.iter().find(|c| c.uuid == notify_uuid).cloned();
-                    let mut notifications = None;
-
-                    if expects_response {
-                        let notify_char = notify_char.ok_or("❌ 未找到通知特征值")?;
-                        if !(notify_char.properties.contains(CharPropFlags::NOTIFY)
-                            || notify_char.properties.contains(CharPropFlags::INDICATE))
-                        {
-                            return Err("❌ 通知特征值不支持通知".into());
-                        }
-                        p.subscribe(&notify_char).await?;
-                        println!("✅ 订阅通知特征值: {:?}", notify_char.uuid);
-                        notifications = Some(p.notifications().await?);
-                    }
-
-                    // 4. 如果有指令，立即执行写入 (即连即发)
-                    if !command_hex.is_empty() {
-                        println!("⚡ 检测到即时指令，准备发送...");
-                        self.send_hex_command(&p, &c, &command_hex).await?;
-
-                        let mut tts = None;
-                        if expects_response {
-                            let notify_uuid = notify_uuid;
-                            let mut stream = notifications.ok_or("❌ 未初始化通知流")?;
-                            let deadline = time::Instant::now() + Duration::from_secs(5);
-                            loop {
-                                let remaining =
-                                    deadline.saturating_duration_since(time::Instant::now());
-                                if remaining.is_zero() {
-                                    return Err("❌ 未收到通知".into());
-                                }
-                                let next = time::timeout(remaining, stream.next()).await;
-                                let notification = match next {
-                                    Ok(Some(value)) => value,
-                                    Ok(None) => return Err("❌ 通知流结束".into()),
-                                    Err(_) => return Err("❌ 未收到通知".into()),
-                                };
-                                if notification.uuid != notify_uuid {
-                                    continue;
-                                }
-                                println!("📥 收到通知: {:02X?}", notification.value);
-                                let parsed = parse_response_payload(&notification.value)?;
-                                let tts_text = build_tts(&parsed);
-                                println!("🗣️ TTS: {}", tts_text);
-                                tts = Some(tts_text);
-                                break;
-                            }
-                        }
-
-                        return Ok(BleExecutionResult {
-                            message: format!("已连接并发送指令: {}", command_hex),
-                            tts,
-                        });
-                    }
-
-                    return Ok(BleExecutionResult {
-                        message: "已连接 (无指令发送)".to_string(),
-                        tts: None,
-                    });
-                } else {
-                    return Err(format!(
-                        "❌ 未找到合适的可写特征值 (UUID 指定: {:?})",
-                        char_uuid_str
-                    )
-                    .into());
-                }
+        for (adapter_index, central) in adapters.into_iter().enumerate() {
+            println!("📡 使用蓝牙适配器 #{} 扫描目标 {}", adapter_index, mac_str);
+            if let Some(peripheral) =
+                Self::scan_target_peripheral(&central, &normalized_target).await?
+            {
+                matched = Some((central, peripheral));
+                break;
             }
         }
 
-        Err(format!("❌ 未扫描到设备: {}", mac_str).into())
+        let Some((central, p)) = matched else {
+            return Err(format!("❌ 未扫描到设备: {}", mac_str).into());
+        };
+
+        println!("🔗 找到设备，正在连接...");
+        if let Err(e) = central.stop_scan().await {
+            eprintln!("⚠️ 停止扫描失败: {}", e);
+        }
+        time::sleep(Duration::from_millis(200)).await;
+        Self::connect_with_retry(&p, 3).await?;
+
+        println!("✅ 连接建立! 正在发现服务...");
+        p.discover_services().await?;
+
+        // 3. 动态寻找特征值
+        let chars = p.characteristics();
+
+        // --- 核心修改：匹配逻辑升级 ---
+        // 寻找满足条件的特征值：
+        // A. 如果指定了 UUID，必须完全匹配
+        // B. 如果没指定 UUID，寻找第一个"可写"的特征值
+        let matched_char = chars
+            .iter()
+            .find(|c| {
+                match (target_service_uuid, target_char_uuid) {
+                    (Some(s_uuid), Some(c_uuid)) => c.uuid == c_uuid && c.service_uuid == s_uuid,
+                    _ => {
+                        // 自动模式：只要能写就行
+                        c.properties.contains(CharPropFlags::WRITE)
+                            || c.properties.contains(CharPropFlags::WRITE_WITHOUT_RESPONSE)
+                    }
+                }
+            })
+            .cloned();
+
+        if let Some(c) = matched_char {
+            println!(
+                "✅ 锁定特征值: {:?} (Service: {:?})",
+                c.uuid, c.service_uuid
+            );
+            println!("   属性: {:?}", c.properties);
+
+            self.write_char = Some(c.clone());
+            self.target_device = Some(p.clone());
+
+            if command_hex.is_empty() {
+                let tcu = self.resolve_tcu_from_advertisement(&p).await?;
+                if let Err(e) = persist_device_info(mac_str, tcu) {
+                    eprintln!("⚠️ 持久化设备信息失败: {}", e);
+                } else {
+                    println!("💾 已保存设备信息: MAC={}, TCU={}", mac_str, tcu);
+                }
+                command_hex = build_query_command(tcu);
+                println!("🧩 生成查询指令: {}", command_hex);
+            }
+
+            let command_bytes = if command_hex.is_empty() {
+                None
+            } else {
+                Some(Self::hex_to_bytes(&command_hex)?)
+            };
+            let expects_response = command_bytes
+                .as_ref()
+                .map(|bytes| bytes.len() >= 2 && bytes[1] == 0x03)
+                .unwrap_or(false);
+
+            let notify_uuid = Uuid::parse_str("0000FFF1-0000-1000-8000-00805F9B34FB")?;
+            let notify_char = chars.iter().find(|c| c.uuid == notify_uuid).cloned();
+            let mut notifications = None;
+
+            if expects_response {
+                let notify_char = notify_char.ok_or("❌ 未找到通知特征值")?;
+                if !(notify_char.properties.contains(CharPropFlags::NOTIFY)
+                    || notify_char.properties.contains(CharPropFlags::INDICATE))
+                {
+                    return Err("❌ 通知特征值不支持通知".into());
+                }
+                p.subscribe(&notify_char).await?;
+                println!("✅ 订阅通知特征值: {:?}", notify_char.uuid);
+                notifications = Some(p.notifications().await?);
+            }
+
+            // 4. 如果有指令，立即执行写入 (即连即发)
+            if !command_hex.is_empty() {
+                println!("⚡ 检测到即时指令，准备发送...");
+                self.send_hex_command(&p, &c, &command_hex).await?;
+
+                let mut tts = None;
+                if expects_response {
+                    let notify_uuid = notify_uuid;
+                    let mut stream = notifications.ok_or("❌ 未初始化通知流")?;
+                    let deadline = time::Instant::now() + Duration::from_secs(5);
+                    loop {
+                        let remaining = deadline.saturating_duration_since(time::Instant::now());
+                        if remaining.is_zero() {
+                            return Err("❌ 未收到通知".into());
+                        }
+                        let next = time::timeout(remaining, stream.next()).await;
+                        let notification = match next {
+                            Ok(Some(value)) => value,
+                            Ok(None) => return Err("❌ 通知流结束".into()),
+                            Err(_) => return Err("❌ 未收到通知".into()),
+                        };
+                        if notification.uuid != notify_uuid {
+                            continue;
+                        }
+                        println!("📥 收到通知: {:02X?}", notification.value);
+                        let parsed = parse_response_payload(&notification.value)?;
+                        let tts_text = build_tts(&parsed);
+                        println!("🗣️ TTS: {}", tts_text);
+                        tts = Some(tts_text);
+                        break;
+                    }
+                }
+
+                return Ok(BleExecutionResult {
+                    message: format!("已连接并发送指令: {}", command_hex),
+                    tts,
+                });
+            }
+
+            return Ok(BleExecutionResult {
+                message: "已连接 (无指令发送)".to_string(),
+                tts: None,
+            });
+        } else {
+            return Err(
+                format!("❌ 未找到合适的可写特征值 (UUID 指定: {:?})", char_uuid_str).into(),
+            );
+        }
     }
 
     pub async fn disconnect_current(&mut self) -> Result<String, Box<dyn Error>> {
@@ -644,6 +644,52 @@ impl BluetoothManager {
 
         device.write(characteristic, &data, write_type).await?;
         Ok(())
+    }
+
+    async fn scan_target_peripheral(
+        central: &Adapter,
+        normalized_target: &str,
+    ) -> Result<Option<Peripheral>, Box<dyn Error>> {
+        if let Err(error) = central.stop_scan().await {
+            eprintln!("⚠️ 扫描前停止旧扫描失败: {}", error);
+        }
+
+        for attempt in 1..=BLE_SCAN_ATTEMPTS {
+            println!(
+                "📡 扫描轮次 {}/{}，窗口 {}s",
+                attempt, BLE_SCAN_ATTEMPTS, BLE_SCAN_WINDOW_SECS
+            );
+            central.start_scan(ScanFilter::default()).await?;
+            time::sleep(Duration::from_secs(BLE_SCAN_WINDOW_SECS)).await;
+
+            let peripherals = central.peripherals().await?;
+            println!("📶 本轮发现 {} 个 BLE 设备", peripherals.len());
+
+            for peripheral in &peripherals {
+                let address = normalize_mac(&peripheral.address().to_string());
+                if address == normalized_target {
+                    return Ok(Some(peripheral.clone()));
+                }
+            }
+
+            let sample_addresses = peripherals
+                .iter()
+                .take(5)
+                .map(|peripheral| peripheral.address().to_string())
+                .collect::<Vec<_>>();
+            if sample_addresses.is_empty() {
+                println!("📭 本轮未发现任何 BLE 外设");
+            } else {
+                println!("📋 本轮设备样例: {}", sample_addresses.join(", "));
+            }
+
+            if let Err(error) = central.stop_scan().await {
+                eprintln!("⚠️ 扫描轮次结束后停止扫描失败: {}", error);
+            }
+            time::sleep(Duration::from_millis(300)).await;
+        }
+
+        Ok(None)
     }
 
     // 简单的 Hex 转 Bytes 工具
