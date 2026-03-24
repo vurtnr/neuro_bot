@@ -221,6 +221,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             message: info.message,
                             error_code: info.error_code,
                             actual_angle_used: info.actual_angle_used,
+                            verified_actual_angle: info.verified_actual_angle,
+                            verified_changed: info.verified_changed,
                             target_angle: info.target_angle,
                             delta_angle_used: info.delta_angle_used,
                         }
@@ -238,6 +240,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             message: error.message,
                             error_code: error.error_code,
                             actual_angle_used: 0.0,
+                            verified_actual_angle: 0.0,
+                            verified_changed: false,
                             target_angle: 0,
                             delta_angle_used: raw_delta_angle.unwrap_or(10),
                         }

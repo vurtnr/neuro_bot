@@ -18,6 +18,10 @@ const MANUAL_DELTA_MAX: i32 = 90;
 const MANUAL_TARGET_MIN: i32 = -128;
 const MANUAL_TARGET_MAX: i32 = 127;
 const NOTIFY_CHARACTERISTIC_UUID: &str = "0000FFF1-0000-1000-8000-00805F9B34FB";
+const MANUAL_VERIFICATION_MIN_DELTA: f32 = 0.5;
+const MANUAL_VERIFICATION_TARGET_TOLERANCE: f32 = 1.5;
+const MANUAL_VERIFICATION_MAX_ATTEMPTS: usize = 3;
+const MANUAL_VERIFICATION_DELAY_MS: u64 = 1200;
 
 pub struct BleExecutionResult {
     pub message: String,
@@ -28,6 +32,8 @@ pub struct ManualAngleExecutionResult {
     pub message: String,
     pub error_code: String,
     pub actual_angle_used: f32,
+    pub verified_actual_angle: f32,
+    pub verified_changed: bool,
     pub target_angle: i32,
     pub delta_angle_used: i32,
     pub tts: Option<String>,
@@ -404,19 +410,57 @@ impl BluetoothManager {
                 tts: Some("姿态调整指令发送失败，请稍后重试。".to_string()),
             })?;
 
+        let verification = self
+            .verify_manual_angle_effect(
+                &peripheral,
+                &write_char,
+                tcu_address,
+                query_result.actual_angle,
+                direction,
+                target_angle,
+            )
+            .await
+            .map_err(|error| ManualAngleFailure {
+                message: format!("姿态调整指令已下发，但复核失败: {error}"),
+                error_code: "verification_query_failed".to_string(),
+                tts: Some(
+                    "姿态调整指令已发送，但复核当前角度失败，请稍后检查设备状态。".to_string(),
+                ),
+            })?;
+
+        if !verification.changed {
+            return Err(ManualAngleFailure {
+                message: format!(
+                    "姿态调整指令已下发，但复核时未检测到实际角度变化。调整前 {:.1}°，当前 {:.1}°。",
+                    query_result.actual_angle, verification.actual_angle
+                ),
+                error_code: "verification_failed".to_string(),
+                tts: Some(
+                    "姿态调整指令已经下发，但当前还没有检测到角度变化，请检查设备执行状态。"
+                        .to_string(),
+                ),
+            });
+        }
+
         let direction_text = direction.label();
         Ok(ManualAngleExecutionResult {
             message: format!(
-                "已按当前实际角度 {:.1}° 计算目标角度 {}°，{}调整指令已下发。",
-                query_result.actual_angle, target_angle, direction_text
+                "已按当前实际角度 {:.1}° 计算目标角度 {}°。复核完成，当前实际角度 {:.1}°，{}调整已生效。",
+                query_result.actual_angle, target_angle, verification.actual_angle, direction_text
             ),
             error_code: String::new(),
             actual_angle_used: query_result.actual_angle,
+            verified_actual_angle: verification.actual_angle,
+            verified_changed: verification.changed,
             target_angle,
             delta_angle_used: delta_angle,
             tts: Some(format!(
-                "已读取当前角度 {:.1} 度，{}调整 {} 度，目标角度 {} 度，指令已下发。",
-                query_result.actual_angle, direction_text, delta_angle, target_angle
+                "已读取当前角度 {:.1} 度，{}调整 {} 度，目标角度 {} 度。复核完成，当前实际角度 {:.1} 度，姿态调整成功。",
+                query_result.actual_angle,
+                direction_text,
+                delta_angle,
+                target_angle,
+                verification.actual_angle
             )),
         })
     }
@@ -539,6 +583,43 @@ impl BluetoothManager {
 
         let _ = peripheral.unsubscribe(&notify_char).await;
         result
+    }
+
+    async fn verify_manual_angle_effect(
+        &self,
+        peripheral: &Peripheral,
+        characteristic: &Characteristic,
+        tcu_address: u8,
+        initial_actual_angle: f32,
+        direction: ManualAngleDirection,
+        target_angle: i32,
+    ) -> Result<ManualAngleVerification, Box<dyn Error>> {
+        let mut last_actual_angle = initial_actual_angle;
+
+        for _ in 0..MANUAL_VERIFICATION_MAX_ATTEMPTS {
+            time::sleep(Duration::from_millis(MANUAL_VERIFICATION_DELAY_MS)).await;
+            let verified_state = self
+                .query_current_state(peripheral, characteristic, tcu_address)
+                .await?;
+            last_actual_angle = verified_state.actual_angle;
+
+            if did_manual_angle_take_effect(
+                initial_actual_angle,
+                verified_state.actual_angle,
+                direction,
+                target_angle,
+            ) {
+                return Ok(ManualAngleVerification {
+                    actual_angle: verified_state.actual_angle,
+                    changed: true,
+                });
+            }
+        }
+
+        Ok(ManualAngleVerification {
+            actual_angle: last_actual_angle,
+            changed: false,
+        })
     }
 
     // 内部辅助：发送 Hex 字符串
@@ -675,6 +756,34 @@ fn build_manual_angle_command(
         .iter()
         .map(|b| format!("{:02X}", b))
         .collect::<String>())
+}
+
+struct ManualAngleVerification {
+    actual_angle: f32,
+    changed: bool,
+}
+
+fn did_manual_angle_take_effect(
+    initial_actual_angle: f32,
+    verified_actual_angle: f32,
+    direction: ManualAngleDirection,
+    target_angle: i32,
+) -> bool {
+    let changed =
+        (verified_actual_angle - initial_actual_angle).abs() >= MANUAL_VERIFICATION_MIN_DELTA;
+    if !changed {
+        return false;
+    }
+
+    let moved_in_expected_direction = match direction {
+        ManualAngleDirection::West => verified_actual_angle > initial_actual_angle,
+        ManualAngleDirection::East => verified_actual_angle < initial_actual_angle,
+    };
+
+    let close_to_target =
+        (verified_actual_angle - target_angle as f32).abs() <= MANUAL_VERIFICATION_TARGET_TOLERANCE;
+
+    moved_in_expected_direction || close_to_target
 }
 
 fn verify_protocol_checksum(protocol: &[u8]) -> bool {
@@ -940,9 +1049,10 @@ fn normalize_command_input(value: &str) -> &str {
 mod tests {
     use super::{
         build_manual_angle_command, build_query_command, compute_manual_target_angle,
-        extract_protocol_from_manufacturer_data, fault_code_to_text, normalize_manual_delta_angle,
-        parse_response_payload, parse_tcu_from_protocol, persist_device_info_to_path,
-        verify_protocol_checksum, verify_response_crc,
+        did_manual_angle_take_effect, extract_protocol_from_manufacturer_data, fault_code_to_text,
+        normalize_manual_delta_angle, parse_response_payload, parse_tcu_from_protocol,
+        persist_device_info_to_path, verify_protocol_checksum, verify_response_crc,
+        ManualAngleDirection,
     };
     use std::collections::HashMap;
     use std::path::PathBuf;
@@ -1046,6 +1156,26 @@ mod tests {
     fn manual_angle_command_uses_signed_angle_and_crc() {
         let cmd = build_manual_angle_command(0x01, -2).expect("command should build");
         assert_eq!(cmd, "0106080140FE6A2A");
+    }
+
+    #[test]
+    fn manual_angle_verification_accepts_westward_change() {
+        assert!(did_manual_angle_take_effect(
+            12.0,
+            13.1,
+            ManualAngleDirection::West,
+            18,
+        ));
+    }
+
+    #[test]
+    fn manual_angle_verification_rejects_unchanged_angle() {
+        assert!(!did_manual_angle_take_effect(
+            12.0,
+            12.2,
+            ManualAngleDirection::West,
+            18,
+        ));
     }
 
     #[test]

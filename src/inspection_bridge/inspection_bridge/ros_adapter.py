@@ -200,6 +200,8 @@ class RosInspectionBridge(Node):
                     "message": response.message,
                     "errorCode": response.error_code,
                     "actualAngleUsed": response.actual_angle_used,
+                    "verifiedActualAngle": response.verified_actual_angle,
+                    "verifiedChanged": response.verified_changed,
                     "targetAngle": response.target_angle,
                     "deltaAngleUsed": response.delta_angle_used,
                 }

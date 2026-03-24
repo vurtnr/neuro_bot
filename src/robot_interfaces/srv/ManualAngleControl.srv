@@ -10,5 +10,7 @@ bool success
 string message
 string error_code
 float32 actual_angle_used
+float32 verified_actual_angle
+bool verified_changed
 int32 target_angle
 int32 delta_angle_used
