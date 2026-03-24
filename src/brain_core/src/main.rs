@@ -6,8 +6,8 @@ use modules::coordinator::{
 };
 use modules::emotion::EmotionManager;
 use modules::inspection::{
-    Action as InspectionAction, Event as InspectionEvent, InspectionCoordinator, InspectionRequest,
-    InspectionStatusUpdate,
+    Action as InspectionAction, Event as InspectionEvent, InspectionAngleSnapshot,
+    InspectionCoordinator, InspectionRequest, InspectionStatusUpdate,
 };
 use modules::state::{BrainEvent, NeuralLinkPayload, StateManager};
 use r2r;
@@ -23,6 +23,12 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time;
+
+struct InspectionBleOutcome {
+    success: bool,
+    message: String,
+    angle_snapshot: Option<InspectionAngleSnapshot>,
+}
 
 fn spawn_control_ble_request(
     client: Arc<r2r::Client<ConnectBluetooth::Service>>,
@@ -61,7 +67,7 @@ fn spawn_control_ble_request(
 fn spawn_inspection_ble_request(
     client: Arc<r2r::Client<ConnectBluetooth::Service>>,
     req: modules::coordinator::BleRequest,
-) -> Pin<Box<dyn Future<Output = (bool, String)>>> {
+) -> Pin<Box<dyn Future<Output = InspectionBleOutcome>>> {
     Box::pin(async move {
         println!(
             "🔎 [inspection] 发起 BLE 请求: mac={} service_uuid={} characteristic_uuid={} command={}",
@@ -80,22 +86,45 @@ fn spawn_inspection_ble_request(
                         "✅ [inspection] BLE 请求完成: success={} message={}",
                         resp.success, resp.message
                     );
-                    (resp.success, resp.message)
+                    InspectionBleOutcome {
+                        success: resp.success,
+                        message: resp.message,
+                        angle_snapshot: if resp.has_device_angles {
+                            Some(InspectionAngleSnapshot {
+                                actual_angle: resp.actual_angle,
+                                target_angle: resp.target_angle,
+                            })
+                        } else {
+                            None
+                        },
+                    }
                 }
                 Ok(Err(e)) => {
                     let message = format!("ROS Call Error: {}", e);
                     eprintln!("❌ [inspection] {}", message);
-                    (false, message)
+                    InspectionBleOutcome {
+                        success: false,
+                        message,
+                        angle_snapshot: None,
+                    }
                 }
                 Err(_) => {
                     eprintln!("❌ [inspection] BLE 请求超时");
-                    (false, "Timeout".to_string())
+                    InspectionBleOutcome {
+                        success: false,
+                        message: "Timeout".to_string(),
+                        angle_snapshot: None,
+                    }
                 }
             },
             Err(e) => {
                 let message = format!("Client Request Error: {}", e);
                 eprintln!("❌ [inspection] {}", message);
-                (false, message)
+                InspectionBleOutcome {
+                    success: false,
+                    message,
+                    angle_snapshot: None,
+                }
             }
         }
     })
@@ -156,6 +185,17 @@ fn publish_inspection_status(
         success: update.success,
         reason: update.reason,
         message: update.message,
+        has_device_angles: update.angle_snapshot.is_some(),
+        actual_angle: update
+            .angle_snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.actual_angle)
+            .unwrap_or(0.0),
+        target_angle: update
+            .angle_snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.target_angle)
+            .unwrap_or(0.0),
     };
     let _ = publisher.publish(&message);
 }
@@ -226,7 +266,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut coordinator = Coordinator::new();
     let mut inspection = InspectionCoordinator::new(Duration::from_secs(30));
     let mut pending_control_ble: Option<Pin<Box<dyn Future<Output = BrainEvent>>>> = None;
-    let mut pending_inspection_ble: Option<Pin<Box<dyn Future<Output = (bool, String)>>>> = None;
+    let mut pending_inspection_ble: Option<Pin<Box<dyn Future<Output = InspectionBleOutcome>>>> =
+        None;
     let mut pending_inspection_announcement_done: Option<Pin<Box<time::Sleep>>> = None;
     let mut pending_completion_announcement_done: Option<Pin<Box<time::Sleep>>> = None;
     let mut pending_completion_disconnect: Option<Pin<Box<dyn Future<Output = (bool, String)>>>> =
@@ -412,13 +453,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Some(fut) = pending_inspection_ble.as_mut() {
                     fut.as_mut().await
                 } else {
-                    pending::<(bool, String)>().await
+                    pending::<InspectionBleOutcome>().await
                 }
             } => {
                 pending_inspection_ble = None;
                 for action in inspection.on_event(InspectionEvent::BleResult {
-                    success: result.0,
-                    message: result.1,
+                    success: result.success,
+                    message: result.message,
+                    angle_snapshot: result.angle_snapshot,
                 }) {
                     match action {
                         InspectionAction::PublishStatus(update) => {

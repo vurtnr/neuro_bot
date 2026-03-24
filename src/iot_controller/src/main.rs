@@ -157,7 +157,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if let Some(tts) = info.tts {
                             publish_tts(&tts_publisher, tts);
                         }
-                        (true, info.message)
+                        let response = ConnectBluetooth::Response {
+                            success: true,
+                            message: info.message,
+                            has_device_angles: info.actual_angle.is_some() && info.target_angle.is_some(),
+                            actual_angle: info.actual_angle.unwrap_or(0.0),
+                            target_angle: info.target_angle.unwrap_or(0.0),
+                        };
+                        println!(
+                            "🔄 执行结果: {} ({})",
+                            response.success, response.message
+                        );
+                        let _ = req.respond(response);
+                        continue;
                     }
                     Err(e) => {
                         publish_tts(&tts_publisher, "蓝牙设备连接失败，请重试。");
@@ -166,7 +178,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 println!("🔄 执行结果: {} ({})", success, msg);
-                let _ = req.respond(ConnectBluetooth::Response { success, message: msg });
+                let _ = req.respond(ConnectBluetooth::Response {
+                    success,
+                    message: msg,
+                    has_device_angles: false,
+                    actual_angle: 0.0,
+                    target_angle: 0.0,
+                });
             }
             req = disconnect_service.next() => {
                 let Some(req) = req else {

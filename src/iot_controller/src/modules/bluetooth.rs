@@ -28,6 +28,8 @@ const BLE_SCAN_WINDOW_SECS: u64 = 5;
 pub struct BleExecutionResult {
     pub message: String,
     pub tts: Option<String>,
+    pub actual_angle: Option<f32>,
+    pub target_angle: Option<f32>,
 }
 
 pub struct ManualAngleExecutionResult {
@@ -281,6 +283,8 @@ impl BluetoothManager {
                 self.send_hex_command(&p, &c, &command_hex).await?;
 
                 let mut tts = None;
+                let mut actual_angle = None;
+                let mut target_angle = None;
                 if expects_response {
                     let notify_uuid = notify_uuid;
                     let mut stream = notifications.ok_or("❌ 未初始化通知流")?;
@@ -302,6 +306,8 @@ impl BluetoothManager {
                         println!("📥 收到通知: {:02X?}", notification.value);
                         let parsed = parse_response_payload(&notification.value)?;
                         let tts_text = build_tts(&parsed);
+                        actual_angle = Some(parsed.actual_angle);
+                        target_angle = Some(parsed.target_angle);
                         println!("🗣️ TTS: {}", tts_text);
                         tts = Some(tts_text);
                         break;
@@ -311,12 +317,16 @@ impl BluetoothManager {
                 return Ok(BleExecutionResult {
                     message: format!("已连接并发送指令: {}", command_hex),
                     tts,
+                    actual_angle,
+                    target_angle,
                 });
             }
 
             return Ok(BleExecutionResult {
                 message: "已连接 (无指令发送)".to_string(),
                 tts: None,
+                actual_angle: None,
+                target_angle: None,
             });
         } else {
             return Err(

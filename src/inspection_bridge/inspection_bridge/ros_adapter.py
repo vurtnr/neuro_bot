@@ -222,5 +222,8 @@ class RosInspectionBridge(Node):
                 "success": msg.success,
                 "reason": msg.reason,
                 "message": msg.message,
+                "hasDeviceAngles": msg.has_device_angles,
+                "actualAngle": msg.actual_angle,
+                "targetAngle": msg.target_angle,
             },
         )

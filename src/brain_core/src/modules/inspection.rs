@@ -21,12 +21,19 @@ pub struct InspectionRequest {
 }
 
 #[derive(Debug, Clone)]
+pub struct InspectionAngleSnapshot {
+    pub actual_angle: f32,
+    pub target_angle: f32,
+}
+
+#[derive(Debug, Clone)]
 pub struct InspectionStatusUpdate {
     pub request_id: String,
     pub stage: String,
     pub success: bool,
     pub reason: String,
     pub message: String,
+    pub angle_snapshot: Option<InspectionAngleSnapshot>,
 }
 
 #[derive(Debug, Clone)]
@@ -41,7 +48,11 @@ pub enum Event {
     StartRequested(InspectionRequest),
     AnnouncementFinished,
     VisionFound(NeuralLinkPayload),
-    BleResult { success: bool, message: String },
+    BleResult {
+        success: bool,
+        message: String,
+        angle_snapshot: Option<InspectionAngleSnapshot>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -136,6 +147,46 @@ mod tests {
             Some(Action::PublishStatus(update)) if update.stage == STAGE_WAITING_FOR_QR
         ));
     }
+
+    #[test]
+    fn successful_ble_result_publishes_angle_snapshot() {
+        let mut coordinator = InspectionCoordinator::new(Duration::from_secs(30));
+        let request = build_request();
+
+        let _ = coordinator.start(request.clone());
+        let _ = coordinator.on_event(Event::AnnouncementFinished);
+        let _ = coordinator.on_event(Event::VisionFound(NeuralLinkPayload {
+            t: "b".to_string(),
+            m: "D6:65:62:A0:AD:E5".to_string(),
+            s: None,
+            c: None,
+            d: None,
+            n: None,
+        }));
+
+        let actions = coordinator.on_event(Event::BleResult {
+            success: true,
+            message: "Inspection completed successfully".to_string(),
+            angle_snapshot: Some(InspectionAngleSnapshot {
+                actual_angle: 12.1,
+                target_angle: 12.3,
+            }),
+        });
+
+        assert_eq!(coordinator.mode(), Mode::Idle);
+        assert!(matches!(
+            actions.first(),
+            Some(Action::PublishStatus(update))
+                if update.stage == STAGE_SUCCESS
+                && update.success
+                && matches!(
+                    update.angle_snapshot.as_ref(),
+                    Some(snapshot)
+                        if (snapshot.actual_angle - 12.1).abs() < 0.01
+                            && (snapshot.target_angle - 12.3).abs() < 0.01
+                )
+        ));
+    }
 }
 
 fn normalize_command_field(value: Option<String>) -> String {
@@ -198,6 +249,7 @@ impl InspectionCoordinator {
                         success: false,
                         reason: String::new(),
                         message: "Inspection session accepted".to_string(),
+                        angle_snapshot: None,
                     }),
                     Action::Speak(INSPECTION_START_ANNOUNCEMENT.to_string()),
                 ]
@@ -216,6 +268,7 @@ impl InspectionCoordinator {
                     success: false,
                     reason: String::new(),
                     message: format!("Waiting for robot to identify {node_label}"),
+                    angle_snapshot: None,
                 })]
             }
             (SessionState::WaitingForQr { request, .. }, Event::VisionFound(payload)) => {
@@ -237,6 +290,7 @@ impl InspectionCoordinator {
                         success: false,
                         reason: String::new(),
                         message: format!("QR detected for {}", request.node_label),
+                        angle_snapshot: None,
                     }),
                     Action::PublishStatus(InspectionStatusUpdate {
                         request_id: request_id.clone(),
@@ -244,6 +298,7 @@ impl InspectionCoordinator {
                         success: false,
                         reason: String::new(),
                         message: format!("Connecting to device MAC {}", ble_request.mac),
+                        angle_snapshot: None,
                     }),
                     Action::PublishStatus(InspectionStatusUpdate {
                         request_id,
@@ -251,11 +306,19 @@ impl InspectionCoordinator {
                         success: false,
                         reason: String::new(),
                         message: "Querying device over BLE".to_string(),
+                        angle_snapshot: None,
                     }),
                     Action::RequestBle(ble_request),
                 ]
             }
-            (SessionState::BleQuerying { request }, Event::BleResult { success, message }) => {
+            (
+                SessionState::BleQuerying { request },
+                Event::BleResult {
+                    success,
+                    message,
+                    angle_snapshot,
+                },
+            ) => {
                 let request_id = request.request_id.clone();
                 self.state = SessionState::Idle;
 
@@ -266,6 +329,7 @@ impl InspectionCoordinator {
                         success: true,
                         reason: String::new(),
                         message: "Inspection completed successfully".to_string(),
+                        angle_snapshot,
                     })]
                 } else {
                     vec![Action::PublishStatus(InspectionStatusUpdate {
@@ -274,6 +338,7 @@ impl InspectionCoordinator {
                         success: false,
                         reason: "device_query_failed".to_string(),
                         message,
+                        angle_snapshot: None,
                     })]
                 }
             }
@@ -292,6 +357,7 @@ impl InspectionCoordinator {
                     success: false,
                     reason: "scan_timeout".to_string(),
                     message: "QR scan timed out".to_string(),
+                    angle_snapshot: None,
                 })]
             }
             _ => Vec::new(),
