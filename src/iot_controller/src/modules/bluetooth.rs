@@ -299,7 +299,7 @@ impl BluetoothManager {
         p.discover_services().await?;
 
         // 3. 动态寻找特征值
-        let chars = p.characteristics();
+        let chars = p.characteristics().into_iter().collect::<Vec<_>>();
 
         // --- 核心修改：匹配逻辑升级 ---
         // 寻找满足条件的特征值：
