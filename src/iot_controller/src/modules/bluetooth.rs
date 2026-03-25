@@ -24,6 +24,9 @@ const MANUAL_VERIFICATION_MAX_ATTEMPTS: usize = 3;
 const MANUAL_VERIFICATION_DELAY_MS: u64 = 1200;
 const BLE_SCAN_ATTEMPTS: usize = 3;
 const BLE_SCAN_WINDOW_SECS: u64 = 5;
+const BLE_CONNECT_SETTLE_MS: u64 = 900;
+const BLE_CONNECT_RETRY_DELAY_MS: u64 = 500;
+const BLE_LOCAL_ABORT_RETRY_DELAY_MS: u64 = 1500;
 
 pub struct BleExecutionResult {
     pub message: String,
@@ -203,8 +206,8 @@ impl BluetoothManager {
         if let Err(e) = central.stop_scan().await {
             eprintln!("⚠️ 停止扫描失败: {}", e);
         }
-        time::sleep(Duration::from_millis(200)).await;
-        Self::connect_with_retry(&p, 3).await?;
+        time::sleep(Duration::from_millis(BLE_CONNECT_SETTLE_MS)).await;
+        Self::connect_with_retry(&central, &p, 3).await?;
 
         println!("✅ 连接建立! 正在发现服务...");
         p.discover_services().await?;
@@ -406,6 +409,7 @@ impl BluetoothManager {
 
         let target_angle = compute_manual_target_angle(
             query_result.actual_angle,
+            query_result.target_angle,
             direction.as_str(),
             delta_angle,
         )?;
@@ -455,8 +459,12 @@ impl BluetoothManager {
         let direction_text = direction.label();
         Ok(ManualAngleExecutionResult {
             message: format!(
-                "已按当前实际角度 {:.1}° 计算目标角度 {}°。复核完成，当前实际角度 {:.1}°，{}调整已生效。",
-                query_result.actual_angle, target_angle, verification.actual_angle, direction_text
+                "已读取当前实际角度 {:.1}°、当前目标角度 {:.1}°，计算新目标角度 {}°。复核完成，当前实际角度 {:.1}°，{}调整已生效。",
+                query_result.actual_angle,
+                query_result.target_angle,
+                target_angle,
+                verification.actual_angle,
+                direction_text
             ),
             error_code: String::new(),
             actual_angle_used: query_result.actual_angle,
@@ -465,8 +473,9 @@ impl BluetoothManager {
             target_angle,
             delta_angle_used: delta_angle,
             tts: Some(format!(
-                "已读取当前角度 {:.1} 度，{}调整 {} 度，目标角度 {} 度。复核完成，当前实际角度 {:.1} 度，姿态调整成功。",
+                "已读取当前实际角度 {:.1} 度，当前目标角度 {:.1} 度，{}调整 {} 度，新目标角度 {} 度。复核完成，当前实际角度 {:.1} 度，姿态调整成功。",
                 query_result.actual_angle,
+                query_result.target_angle,
                 direction_text,
                 delta_angle,
                 target_angle,
@@ -476,6 +485,7 @@ impl BluetoothManager {
     }
 
     async fn connect_with_retry(
+        central: &Adapter,
         peripheral: &Peripheral,
         max_attempts: usize,
     ) -> Result<(), Box<dyn Error>> {
@@ -490,6 +500,9 @@ impl BluetoothManager {
         }
 
         for attempt in 1..=max_attempts {
+            if let Err(error) = central.stop_scan().await {
+                eprintln!("⚠️ 连接前停止扫描失败: {}", error);
+            }
             match peripheral.connect().await {
                 Ok(_) => return Ok(()),
                 Err(e) => {
@@ -500,7 +513,14 @@ impl BluetoothManager {
                     );
                     let _ = peripheral.disconnect().await;
                     if attempt < max_attempts {
-                        time::sleep(Duration::from_millis(500)).await;
+                        let retry_delay_ms = connect_retry_delay_ms(&last_error);
+                        if is_local_connection_abort(&last_error) {
+                            eprintln!(
+                                "⚠️ 检测到本地主动中止连接，等待蓝牙适配器稳定 {}ms 后重试...",
+                                retry_delay_ms
+                            );
+                        }
+                        time::sleep(Duration::from_millis(retry_delay_ms)).await;
                     }
                 }
             }
@@ -714,6 +734,20 @@ impl BluetoothManager {
     }
 }
 
+fn is_local_connection_abort(error: &str) -> bool {
+    error
+        .to_ascii_lowercase()
+        .contains("le-connection-abort-by-local")
+}
+
+fn connect_retry_delay_ms(error: &str) -> u64 {
+    if is_local_connection_abort(error) {
+        BLE_LOCAL_ABORT_RETRY_DELAY_MS
+    } else {
+        BLE_CONNECT_RETRY_DELAY_MS
+    }
+}
+
 fn crc16_modbus(data: &[u8]) -> u16 {
     let mut crc: u16 = 0xFFFF;
     for b in data {
@@ -763,19 +797,26 @@ fn normalize_manual_delta_angle(
 
 fn compute_manual_target_angle(
     actual_angle: f32,
+    current_target_angle: f32,
     direction: &str,
     delta_angle: i32,
 ) -> Result<i32, ManualAngleValidationError> {
     let rounded_actual_angle = actual_angle.round() as i32;
+    let rounded_current_target_angle = current_target_angle.round() as i32;
     let direction =
         parse_manual_angle_direction(direction).map_err(|error| ManualAngleValidationError {
             kind: ManualAngleValidationErrorKind::InvalidDirection,
             message: error.message,
         })?;
 
+    let base_angle = match direction {
+        ManualAngleDirection::West => rounded_actual_angle.max(rounded_current_target_angle),
+        ManualAngleDirection::East => rounded_actual_angle.min(rounded_current_target_angle),
+    };
+
     let target_angle = match direction {
-        ManualAngleDirection::West => rounded_actual_angle + delta_angle,
-        ManualAngleDirection::East => rounded_actual_angle - delta_angle,
+        ManualAngleDirection::West => base_angle + delta_angle,
+        ManualAngleDirection::East => base_angle - delta_angle,
     };
 
     if !(MANUAL_TARGET_MIN..=MANUAL_TARGET_MAX).contains(&target_angle) {
@@ -1198,13 +1239,29 @@ mod tests {
 
     #[test]
     fn manual_target_angle_uses_rounded_actual_angle() {
-        let target = compute_manual_target_angle(12.6, "west", 5).expect("target should compute");
+        let target =
+            compute_manual_target_angle(12.6, 11.2, "west", 5).expect("target should compute");
         assert_eq!(target, 18);
     }
 
     #[test]
+    fn manual_target_angle_advances_from_existing_westward_target_when_it_is_ahead() {
+        let target =
+            compute_manual_target_angle(19.4, 29.0, "west", 10).expect("target should compute");
+        assert_eq!(target, 39);
+    }
+
+    #[test]
+    fn manual_target_angle_advances_from_existing_eastward_target_when_it_is_ahead() {
+        let target =
+            compute_manual_target_angle(19.4, 9.0, "east", 10).expect("target should compute");
+        assert_eq!(target, -1);
+    }
+
+    #[test]
     fn manual_target_angle_rejects_protocol_overflow() {
-        let error = compute_manual_target_angle(120.4, "west", 10).expect_err("should reject");
+        let error =
+            compute_manual_target_angle(120.4, 126.0, "west", 10).expect_err("should reject");
         assert!(error.contains("目标角度超出"));
     }
 
@@ -1232,6 +1289,27 @@ mod tests {
             ManualAngleDirection::West,
             18,
         ));
+    }
+
+    #[test]
+    fn local_connection_abort_is_detected_case_insensitively() {
+        assert!(is_local_connection_abort("le-connection-abort-by-local"));
+        assert!(is_local_connection_abort("LE-CONNECTION-ABORT-BY-LOCAL"));
+        assert!(!is_local_connection_abort(
+            "le-connection-failed-to-be-established"
+        ));
+    }
+
+    #[test]
+    fn local_connection_abort_uses_longer_retry_delay() {
+        assert_eq!(
+            connect_retry_delay_ms("le-connection-abort-by-local"),
+            BLE_LOCAL_ABORT_RETRY_DELAY_MS
+        );
+        assert_eq!(
+            connect_retry_delay_ms("other-error"),
+            BLE_CONNECT_RETRY_DELAY_MS
+        );
     }
 
     #[test]
