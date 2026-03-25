@@ -6,9 +6,9 @@ use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tokio::time;
+use tokio::{process::Command, time};
 use uuid::Uuid;
 
 const AUTO_MODE_TARGET_WORK_MODE: u16 = 0x0140;
@@ -27,6 +27,12 @@ const BLE_SCAN_WINDOW_SECS: u64 = 5;
 const BLE_CONNECT_SETTLE_MS: u64 = 900;
 const BLE_CONNECT_RETRY_DELAY_MS: u64 = 500;
 const BLE_LOCAL_ABORT_RETRY_DELAY_MS: u64 = 1500;
+const BLEAK_HELPER_TIMEOUT_SECS: u64 = 12;
+const BLEAK_NOTIFICATION_TIMEOUT_MS: u64 = 5000;
+const VENDOR_SERVICE_UUID: &str = "0000FFF0-0000-1000-8000-00805F9B34FB";
+const VENDOR_NOTIFY_UUID: &str = "0000FFF1-0000-1000-8000-00805F9B34FB";
+const VENDOR_WRITE_PRIMARY_UUID: &str = "0000FFF2-0000-1000-8000-00805F9B34FB";
+const VENDOR_WRITE_SECONDARY_UUID: &str = "0000FFF3-0000-1000-8000-00805F9B34FB";
 
 pub struct BleExecutionResult {
     pub message: String,
@@ -44,6 +50,53 @@ pub struct ManualAngleExecutionResult {
     pub target_angle: i32,
     pub delta_angle_used: i32,
     pub tts: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BleCharacteristicCandidate {
+    service_uuid: Uuid,
+    characteristic_uuid: Uuid,
+    is_writable: bool,
+}
+
+impl BleCharacteristicCandidate {
+    fn new(service_uuid: Uuid, characteristic_uuid: Uuid, is_writable: bool) -> Self {
+        Self {
+            service_uuid,
+            characteristic_uuid,
+            is_writable,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct BleakSession {
+    mac: String,
+    service_uuid: Option<String>,
+    write_char_uuid: String,
+    notify_char_uuid: Option<String>,
+    tcu_address: Option<u8>,
+}
+
+#[derive(Debug, Serialize)]
+struct BleakHelperRequest {
+    mac: String,
+    service_uuid: Option<String>,
+    write_char_uuid: Option<String>,
+    notify_char_uuid: Option<String>,
+    command_hex: Option<String>,
+    expect_notification: bool,
+    notification_timeout_ms: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct BleakHelperResponse {
+    success: bool,
+    message: String,
+    service_uuid: Option<String>,
+    write_char_uuid: Option<String>,
+    notify_char_uuid: Option<String>,
+    notification_hex: Option<String>,
 }
 
 #[derive(Debug)]
@@ -150,6 +203,7 @@ impl From<ManualAngleValidationError> for ManualAngleFailure {
 pub struct BluetoothManager {
     target_device: Option<Peripheral>,
     write_char: Option<Characteristic>,
+    bleak_session: Option<BleakSession>,
 }
 
 impl BluetoothManager {
@@ -157,6 +211,7 @@ impl BluetoothManager {
         Self {
             target_device: None,
             write_char: None,
+            bleak_session: None,
         }
     }
 
@@ -202,12 +257,43 @@ impl BluetoothManager {
             return Err(format!("❌ 未扫描到设备: {}", mac_str).into());
         };
 
+        let mut resolved_tcu_address = None;
+        if command_hex.is_empty() {
+            let tcu = self.resolve_tcu_from_advertisement(&p).await?;
+            if let Err(e) = persist_device_info(mac_str, tcu) {
+                eprintln!("⚠️ 持久化设备信息失败: {}", e);
+            } else {
+                println!("💾 已保存设备信息: MAC={}, TCU={}", mac_str, tcu);
+            }
+            command_hex = build_query_command(tcu);
+            resolved_tcu_address = Some(tcu);
+            println!("🧩 生成查询指令: {}", command_hex);
+        }
+
         println!("🔗 找到设备，正在连接...");
         if let Err(e) = central.stop_scan().await {
             eprintln!("⚠️ 停止扫描失败: {}", e);
         }
         time::sleep(Duration::from_millis(BLE_CONNECT_SETTLE_MS)).await;
-        Self::connect_with_retry(&central, &p, 3).await?;
+        if let Err(error) = Self::connect_with_retry(&central, &p, 3).await {
+            let error_message = error.to_string();
+            if should_use_bleak_fallback(&error_message) {
+                eprintln!(
+                    "⚠️ btleplug 建连失败，切换 Bleak fallback: {}",
+                    error_message
+                );
+                return self
+                    .execute_with_bleak_fallback(
+                        mac_str,
+                        target_service_uuid,
+                        target_char_uuid,
+                        &command_hex,
+                        resolved_tcu_address,
+                    )
+                    .await;
+            }
+            return Err(error);
+        }
 
         println!("✅ 连接建立! 正在发现服务...");
         p.discover_services().await?;
@@ -219,19 +305,8 @@ impl BluetoothManager {
         // 寻找满足条件的特征值：
         // A. 如果指定了 UUID，必须完全匹配
         // B. 如果没指定 UUID，寻找第一个"可写"的特征值
-        let matched_char = chars
-            .iter()
-            .find(|c| {
-                match (target_service_uuid, target_char_uuid) {
-                    (Some(s_uuid), Some(c_uuid)) => c.uuid == c_uuid && c.service_uuid == s_uuid,
-                    _ => {
-                        // 自动模式：只要能写就行
-                        c.properties.contains(CharPropFlags::WRITE)
-                            || c.properties.contains(CharPropFlags::WRITE_WITHOUT_RESPONSE)
-                    }
-                }
-            })
-            .cloned();
+        let matched_char =
+            select_write_characteristic(&chars, target_service_uuid, target_char_uuid);
 
         if let Some(c) = matched_char {
             println!(
@@ -242,17 +317,7 @@ impl BluetoothManager {
 
             self.write_char = Some(c.clone());
             self.target_device = Some(p.clone());
-
-            if command_hex.is_empty() {
-                let tcu = self.resolve_tcu_from_advertisement(&p).await?;
-                if let Err(e) = persist_device_info(mac_str, tcu) {
-                    eprintln!("⚠️ 持久化设备信息失败: {}", e);
-                } else {
-                    println!("💾 已保存设备信息: MAC={}, TCU={}", mac_str, tcu);
-                }
-                command_hex = build_query_command(tcu);
-                println!("🧩 生成查询指令: {}", command_hex);
-            }
+            self.bleak_session = None;
 
             let command_bytes = if command_hex.is_empty() {
                 None
@@ -341,8 +406,12 @@ impl BluetoothManager {
     pub async fn disconnect_current(&mut self) -> Result<String, Box<dyn Error>> {
         let target_device = self.target_device.take();
         self.write_char = None;
+        let had_bleak_session = self.bleak_session.take().is_some();
 
         let Some(peripheral) = target_device else {
+            if had_bleak_session {
+                return Ok("蓝牙连接已断开".to_string());
+            }
             return Ok("当前无活动蓝牙连接".to_string());
         };
 
@@ -362,6 +431,12 @@ impl BluetoothManager {
     ) -> Result<ManualAngleExecutionResult, ManualAngleFailure> {
         let direction = parse_manual_angle_direction(direction)?;
         let delta_angle = normalize_manual_delta_angle(raw_delta_angle)?;
+
+        if let Some(session) = self.bleak_session.clone() {
+            return self
+                .execute_manual_angle_with_bleak(&session, direction, delta_angle)
+                .await;
+        }
 
         let Some(peripheral) = self.target_device.clone() else {
             return Err(ManualAngleFailure {
@@ -482,6 +557,317 @@ impl BluetoothManager {
                 verification.actual_angle
             )),
         })
+    }
+
+    async fn execute_with_bleak_fallback(
+        &mut self,
+        mac_str: &str,
+        target_service_uuid: Option<Uuid>,
+        target_char_uuid: Option<Uuid>,
+        command_hex: &str,
+        resolved_tcu_address: Option<u8>,
+    ) -> Result<BleExecutionResult, Box<dyn Error>> {
+        let command_bytes = if command_hex.is_empty() {
+            None
+        } else {
+            Some(Self::hex_to_bytes(command_hex)?)
+        };
+        let expects_response = command_bytes
+            .as_ref()
+            .map(|bytes| bytes.len() >= 2 && bytes[1] == 0x03)
+            .unwrap_or(false);
+        let response = Self::run_bleak_helper(BleakHelperRequest {
+            mac: mac_str.to_string(),
+            service_uuid: target_service_uuid.map(|uuid| uuid.to_string()),
+            write_char_uuid: target_char_uuid.map(|uuid| uuid.to_string()),
+            notify_char_uuid: expects_response.then(|| VENDOR_NOTIFY_UUID.to_string()),
+            command_hex: (!command_hex.is_empty()).then(|| command_hex.to_string()),
+            expect_notification: expects_response,
+            notification_timeout_ms: BLEAK_NOTIFICATION_TIMEOUT_MS,
+        })
+        .await?;
+
+        if !response.success {
+            return Err(response.message.into());
+        }
+
+        let write_char_uuid = response
+            .write_char_uuid
+            .clone()
+            .ok_or("❌ Bleak fallback 未返回可写特征值")?;
+        self.target_device = None;
+        self.write_char = None;
+        self.bleak_session = Some(BleakSession {
+            mac: mac_str.to_string(),
+            service_uuid: response.service_uuid.clone(),
+            write_char_uuid,
+            notify_char_uuid: response.notify_char_uuid.clone(),
+            tcu_address: resolved_tcu_address,
+        });
+
+        let mut result = BleExecutionResult {
+            message: response.message,
+            tts: None,
+            actual_angle: None,
+            target_angle: None,
+        };
+
+        if expects_response {
+            let notification_hex = response
+                .notification_hex
+                .ok_or("❌ Bleak fallback 未返回通知数据")?;
+            let payload = Self::hex_to_bytes(&notification_hex)?;
+            println!("📥 [bleak] 收到通知: {:02X?}", payload);
+            let parsed = parse_response_payload(&payload)?;
+            let tts_text = build_tts(&parsed);
+            println!("🗣️ TTS: {}", tts_text);
+            result.tts = Some(tts_text);
+            result.actual_angle = Some(parsed.actual_angle);
+            result.target_angle = Some(parsed.target_angle);
+            if let Some(session) = self.bleak_session.as_mut() {
+                session.tcu_address = Some(parsed.tcu_address);
+            }
+        }
+
+        Ok(result)
+    }
+
+    async fn execute_manual_angle_with_bleak(
+        &mut self,
+        session: &BleakSession,
+        direction: ManualAngleDirection,
+        delta_angle: i32,
+    ) -> Result<ManualAngleExecutionResult, ManualAngleFailure> {
+        let tcu_address = self
+            .resolve_current_tcu_address_for_bleak(session)
+            .map_err(|error| ManualAngleFailure {
+                message: format!("无法获取当前设备的 TCU 地址: {error}"),
+                error_code: "missing_tcu_address".to_string(),
+                tts: Some("当前设备地址信息不完整，无法执行姿态调整。".to_string()),
+            })?;
+
+        let query_result = self
+            .query_current_state_with_bleak(session, tcu_address)
+            .await
+            .map_err(|error| ManualAngleFailure {
+                message: format!("读取当前设备角度失败: {error}"),
+                error_code: "query_failed".to_string(),
+                tts: Some("当前设备状态读取失败，本次姿态调整已取消。".to_string()),
+            })?;
+
+        let target_angle = compute_manual_target_angle(
+            query_result.actual_angle,
+            query_result.target_angle,
+            direction.as_str(),
+            delta_angle,
+        )?;
+        let command_hex = build_manual_angle_command(tcu_address, target_angle)
+            .map_err(ManualAngleFailure::from)?;
+
+        self.send_command_with_bleak(session, &command_hex)
+            .await
+            .map_err(|error| ManualAngleFailure {
+                message: format!("姿态调整指令下发失败: {error}"),
+                error_code: "command_write_failed".to_string(),
+                tts: Some("姿态调整指令发送失败，请稍后重试。".to_string()),
+            })?;
+
+        let verification = self
+            .verify_manual_angle_effect_with_bleak(
+                session,
+                tcu_address,
+                query_result.actual_angle,
+                direction,
+                target_angle,
+            )
+            .await
+            .map_err(|error| ManualAngleFailure {
+                message: format!("姿态调整指令已下发，但复核失败: {error}"),
+                error_code: "verification_query_failed".to_string(),
+                tts: Some(
+                    "姿态调整指令已发送，但复核当前角度失败，请稍后检查设备状态。".to_string(),
+                ),
+            })?;
+
+        if !verification.changed {
+            return Err(ManualAngleFailure {
+                message: format!(
+                    "姿态调整指令已下发，但复核时未检测到实际角度变化。调整前 {:.1}°，当前 {:.1}°。",
+                    query_result.actual_angle, verification.actual_angle
+                ),
+                error_code: "verification_failed".to_string(),
+                tts: Some(
+                    "姿态调整指令已经下发，但当前还没有检测到角度变化，请检查设备执行状态。"
+                        .to_string(),
+                ),
+            });
+        }
+
+        let direction_text = direction.label();
+        Ok(ManualAngleExecutionResult {
+            message: format!(
+                "已读取当前实际角度 {:.1}°、当前目标角度 {:.1}°，计算新目标角度 {}°。复核完成，当前实际角度 {:.1}°，{}调整已生效。",
+                query_result.actual_angle,
+                query_result.target_angle,
+                target_angle,
+                verification.actual_angle,
+                direction_text
+            ),
+            error_code: String::new(),
+            actual_angle_used: query_result.actual_angle,
+            verified_actual_angle: verification.actual_angle,
+            verified_changed: verification.changed,
+            target_angle,
+            delta_angle_used: delta_angle,
+            tts: Some(format!(
+                "已读取当前实际角度 {:.1} 度，当前目标角度 {:.1} 度，{}调整 {} 度，新目标角度 {} 度。复核完成，当前实际角度 {:.1} 度，姿态调整成功。",
+                query_result.actual_angle,
+                query_result.target_angle,
+                direction_text,
+                delta_angle,
+                target_angle,
+                verification.actual_angle
+            )),
+        })
+    }
+
+    fn resolve_current_tcu_address_for_bleak(
+        &self,
+        session: &BleakSession,
+    ) -> Result<u8, Box<dyn Error>> {
+        if let Some(tcu) = session.tcu_address {
+            return Ok(tcu);
+        }
+
+        let info = load_persisted_device_info()?;
+        if normalize_mac(&info.mac) == normalize_mac(&session.mac) {
+            return Ok(info.tcu);
+        }
+
+        Err("❌ 当前缺少已缓存的 TCU 地址".into())
+    }
+
+    async fn query_current_state_with_bleak(
+        &self,
+        session: &BleakSession,
+        tcu_address: u8,
+    ) -> Result<ParsedResponse, Box<dyn Error>> {
+        let response = Self::run_bleak_helper(BleakHelperRequest {
+            mac: session.mac.clone(),
+            service_uuid: session.service_uuid.clone(),
+            write_char_uuid: Some(session.write_char_uuid.clone()),
+            notify_char_uuid: session.notify_char_uuid.clone(),
+            command_hex: Some(build_query_command(tcu_address)),
+            expect_notification: true,
+            notification_timeout_ms: BLEAK_NOTIFICATION_TIMEOUT_MS,
+        })
+        .await?;
+
+        if !response.success {
+            return Err(response.message.into());
+        }
+
+        let notification_hex = response
+            .notification_hex
+            .ok_or("❌ Bleak 查询未返回通知数据")?;
+        let payload = Self::hex_to_bytes(&notification_hex)?;
+        println!("📥 [bleak] 收到设备查询响应: {:02X?}", payload);
+        parse_response_payload(&payload)
+    }
+
+    async fn send_command_with_bleak(
+        &self,
+        session: &BleakSession,
+        command_hex: &str,
+    ) -> Result<(), Box<dyn Error>> {
+        let response = Self::run_bleak_helper(BleakHelperRequest {
+            mac: session.mac.clone(),
+            service_uuid: session.service_uuid.clone(),
+            write_char_uuid: Some(session.write_char_uuid.clone()),
+            notify_char_uuid: session.notify_char_uuid.clone(),
+            command_hex: Some(command_hex.to_string()),
+            expect_notification: false,
+            notification_timeout_ms: BLEAK_NOTIFICATION_TIMEOUT_MS,
+        })
+        .await?;
+
+        if response.success {
+            return Ok(());
+        }
+
+        Err(response.message.into())
+    }
+
+    async fn verify_manual_angle_effect_with_bleak(
+        &self,
+        session: &BleakSession,
+        tcu_address: u8,
+        initial_actual_angle: f32,
+        direction: ManualAngleDirection,
+        target_angle: i32,
+    ) -> Result<ManualAngleVerification, Box<dyn Error>> {
+        let mut last_actual_angle = initial_actual_angle;
+
+        for _ in 0..MANUAL_VERIFICATION_MAX_ATTEMPTS {
+            time::sleep(Duration::from_millis(MANUAL_VERIFICATION_DELAY_MS)).await;
+            let verified_state = self
+                .query_current_state_with_bleak(session, tcu_address)
+                .await?;
+            last_actual_angle = verified_state.actual_angle;
+
+            if did_manual_angle_take_effect(
+                initial_actual_angle,
+                verified_state.actual_angle,
+                direction,
+                target_angle,
+            ) {
+                return Ok(ManualAngleVerification {
+                    actual_angle: verified_state.actual_angle,
+                    changed: true,
+                });
+            }
+        }
+
+        Ok(ManualAngleVerification {
+            actual_angle: last_actual_angle,
+            changed: false,
+        })
+    }
+
+    async fn run_bleak_helper(
+        request: BleakHelperRequest,
+    ) -> Result<BleakHelperResponse, Box<dyn Error>> {
+        let helper_path = bleak_fallback_helper_path();
+        if !helper_path.exists() {
+            return Err(format!("❌ Bleak fallback 脚本不存在: {}", helper_path.display()).into());
+        }
+
+        let request_json = serde_json::to_string(&request)?;
+        let output = time::timeout(
+            Duration::from_secs(BLEAK_HELPER_TIMEOUT_SECS),
+            Command::new("python3")
+                .arg(&helper_path)
+                .arg("--request")
+                .arg(request_json)
+                .output(),
+        )
+        .await
+        .map_err(|_| "❌ Bleak fallback 执行超时")??;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let detail = if !stderr.trim().is_empty() {
+                stderr.trim().to_string()
+            } else {
+                stdout.trim().to_string()
+            };
+            return Err(format!("❌ Bleak fallback 执行失败: {}", detail).into());
+        }
+
+        let stdout = String::from_utf8(output.stdout)?;
+        let response = serde_json::from_str::<BleakHelperResponse>(stdout.trim())?;
+        Ok(response)
     }
 
     async fn connect_with_retry(
@@ -745,6 +1131,89 @@ fn connect_retry_delay_ms(error: &str) -> u64 {
         BLE_LOCAL_ABORT_RETRY_DELAY_MS
     } else {
         BLE_CONNECT_RETRY_DELAY_MS
+    }
+}
+
+fn should_use_bleak_fallback(error: &str) -> bool {
+    is_local_connection_abort(error)
+}
+
+fn bleak_fallback_helper_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("scripts")
+        .join("bleak_fallback.py")
+}
+
+fn select_preferred_write_candidate(
+    candidates: &[BleCharacteristicCandidate],
+) -> Option<BleCharacteristicCandidate> {
+    let vendor_service_uuid = Uuid::parse_str(VENDOR_SERVICE_UUID).ok()?;
+    let vendor_write_primary_uuid = Uuid::parse_str(VENDOR_WRITE_PRIMARY_UUID).ok()?;
+    let vendor_write_secondary_uuid = Uuid::parse_str(VENDOR_WRITE_SECONDARY_UUID).ok()?;
+
+    let mut best: Option<(usize, &BleCharacteristicCandidate)> = None;
+    for candidate in candidates.iter().filter(|candidate| candidate.is_writable) {
+        let priority = if candidate.service_uuid == vendor_service_uuid
+            && candidate.characteristic_uuid == vendor_write_primary_uuid
+        {
+            0
+        } else if candidate.service_uuid == vendor_service_uuid
+            && candidate.characteristic_uuid == vendor_write_secondary_uuid
+        {
+            1
+        } else if candidate.service_uuid == vendor_service_uuid {
+            2
+        } else {
+            10
+        };
+
+        if best
+            .as_ref()
+            .map(|(best_priority, _)| priority < *best_priority)
+            .unwrap_or(true)
+        {
+            best = Some((priority, candidate));
+        }
+    }
+
+    best.map(|(_, candidate)| candidate.clone())
+}
+
+fn select_write_characteristic(
+    chars: &[Characteristic],
+    target_service_uuid: Option<Uuid>,
+    target_char_uuid: Option<Uuid>,
+) -> Option<Characteristic> {
+    match (target_service_uuid, target_char_uuid) {
+        (Some(service_uuid), Some(char_uuid)) => chars
+            .iter()
+            .find(|characteristic| {
+                characteristic.service_uuid == service_uuid && characteristic.uuid == char_uuid
+            })
+            .cloned(),
+        _ => {
+            let candidates = chars
+                .iter()
+                .map(|characteristic| {
+                    BleCharacteristicCandidate::new(
+                        characteristic.service_uuid,
+                        characteristic.uuid,
+                        characteristic.properties.contains(CharPropFlags::WRITE)
+                            || characteristic
+                                .properties
+                                .contains(CharPropFlags::WRITE_WITHOUT_RESPONSE),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let selected = select_preferred_write_candidate(&candidates)?;
+            chars
+                .iter()
+                .find(|characteristic| {
+                    characteristic.service_uuid == selected.service_uuid
+                        && characteristic.uuid == selected.characteristic_uuid
+                })
+                .cloned()
+        }
     }
 }
 
@@ -1145,15 +1614,18 @@ fn normalize_command_input(value: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_manual_angle_command, build_query_command, compute_manual_target_angle,
-        did_manual_angle_take_effect, extract_protocol_from_manufacturer_data, fault_code_to_text,
+        bleak_fallback_helper_path, build_manual_angle_command, build_query_command,
+        compute_manual_target_angle, connect_retry_delay_ms, did_manual_angle_take_effect,
+        extract_protocol_from_manufacturer_data, fault_code_to_text, is_local_connection_abort,
         normalize_manual_delta_angle, parse_response_payload, parse_tcu_from_protocol,
-        persist_device_info_to_path, verify_protocol_checksum, verify_response_crc,
-        ManualAngleDirection,
+        persist_device_info_to_path, select_preferred_write_candidate, should_use_bleak_fallback,
+        verify_protocol_checksum, verify_response_crc, BleCharacteristicCandidate,
+        ManualAngleDirection, BLE_CONNECT_RETRY_DELAY_MS, BLE_LOCAL_ABORT_RETRY_DELAY_MS,
     };
     use std::collections::HashMap;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
+    use uuid::Uuid;
 
     fn valid_protocol_sample() -> [u8; 26] {
         // Precomputed valid protocol (rand0=0x12, rand1=0x34, tcu=0x0A).
@@ -1234,7 +1706,7 @@ mod tests {
     #[test]
     fn manual_delta_rejects_out_of_range_values() {
         let error = normalize_manual_delta_angle(Some(91)).expect_err("delta should fail");
-        assert!(error.contains("0 到 90"));
+        assert!(error.to_string().contains("0 到 90"));
     }
 
     #[test]
@@ -1262,7 +1734,7 @@ mod tests {
     fn manual_target_angle_rejects_protocol_overflow() {
         let error =
             compute_manual_target_angle(120.4, 126.0, "west", 10).expect_err("should reject");
-        assert!(error.contains("目标角度超出"));
+        assert!(error.to_string().contains("目标角度超出"));
     }
 
     #[test]
@@ -1310,6 +1782,69 @@ mod tests {
             connect_retry_delay_ms("other-error"),
             BLE_CONNECT_RETRY_DELAY_MS
         );
+    }
+
+    #[test]
+    fn bleak_fallback_only_triggers_for_local_abort_errors() {
+        assert!(should_use_bleak_fallback("le-connection-abort-by-local"));
+        assert!(should_use_bleak_fallback(
+            "BLE connect failed: LE-CONNECTION-ABORT-BY-LOCAL"
+        ));
+        assert!(!should_use_bleak_fallback("❌ 未扫描到设备"));
+        assert!(!should_use_bleak_fallback(
+            "le-connection-failed-to-be-established"
+        ));
+    }
+
+    #[test]
+    fn preferred_write_candidate_prefers_fff2_over_other_writable_chars() {
+        let service_uuid = Uuid::parse_str("0000fff0-0000-1000-8000-00805f9b34fb").unwrap();
+        let generic_service_uuid = Uuid::parse_str("00001801-0000-1000-8000-00805f9b34fb").unwrap();
+        let fff2 = BleCharacteristicCandidate::new(
+            service_uuid,
+            Uuid::parse_str("0000fff2-0000-1000-8000-00805f9b34fb").unwrap(),
+            true,
+        );
+        let fff3 = BleCharacteristicCandidate::new(
+            service_uuid,
+            Uuid::parse_str("0000fff3-0000-1000-8000-00805f9b34fb").unwrap(),
+            true,
+        );
+        let generic = BleCharacteristicCandidate::new(
+            generic_service_uuid,
+            Uuid::parse_str("00002a05-0000-1000-8000-00805f9b34fb").unwrap(),
+            true,
+        );
+
+        let selected = select_preferred_write_candidate(&[generic, fff3, fff2]).unwrap();
+        assert_eq!(
+            selected.characteristic_uuid,
+            Uuid::parse_str("0000fff2-0000-1000-8000-00805f9b34fb").unwrap()
+        );
+    }
+
+    #[test]
+    fn preferred_write_candidate_falls_back_to_first_writable_when_vendor_uuids_absent() {
+        let service_uuid = Uuid::parse_str("00001801-0000-1000-8000-00805f9b34fb").unwrap();
+        let first = BleCharacteristicCandidate::new(
+            service_uuid,
+            Uuid::parse_str("00002a05-0000-1000-8000-00805f9b34fb").unwrap(),
+            true,
+        );
+        let second = BleCharacteristicCandidate::new(
+            service_uuid,
+            Uuid::parse_str("00002a06-0000-1000-8000-00805f9b34fb").unwrap(),
+            true,
+        );
+
+        let selected = select_preferred_write_candidate(&[first.clone(), second]).unwrap();
+        assert_eq!(selected.characteristic_uuid, first.characteristic_uuid);
+    }
+
+    #[test]
+    fn bleak_helper_path_resolves_inside_iot_controller_package() {
+        let helper_path = bleak_fallback_helper_path();
+        assert!(helper_path.ends_with("scripts/bleak_fallback.py"));
     }
 
     #[test]
