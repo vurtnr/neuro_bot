@@ -267,19 +267,27 @@ fn is_start_site_patrol_intent(text: &str) -> bool {
 
     let explicit_phrases = [
         "开始巡检",
+        "开启巡检",
+        "启动巡检",
         "现在开始巡检",
         "开始当前巡检",
         "执行巡检",
         "进行巡检",
         "开始场站巡检",
+        "开启场站巡检",
+        "启动场站巡检",
         "进行场站巡检",
         "执行场站巡检",
         "开始巡检任务",
+        "开启巡检任务",
+        "启动巡检任务",
         "进行巡检任务",
         "执行巡检任务",
         "进行场站巡检任务",
         "执行场站巡检任务",
         "开始场站巡检任务",
+        "开启场站巡检任务",
+        "启动场站巡检任务",
     ];
 
     if explicit_phrases
@@ -292,6 +300,8 @@ fn is_start_site_patrol_intent(text: &str) -> bool {
     let contains_patrol_keyword =
         normalized.contains("巡检") || normalized.contains("巡检任务");
     let contains_start_keyword = normalized.contains("开始")
+        || normalized.contains("开启")
+        || normalized.contains("启动")
         || normalized.contains("进行")
         || normalized.contains("执行");
     let contains_station_scope =
@@ -332,6 +342,8 @@ mod tests {
     #[test]
     fn matches_common_site_patrol_phrases() {
         assert!(is_start_site_patrol_intent("开始巡检"));
+        assert!(is_start_site_patrol_intent("开启场站巡检"));
+        assert!(is_start_site_patrol_intent("启动场站巡检任务"));
         assert!(is_start_site_patrol_intent("进行场站巡检任务"));
         assert!(is_start_site_patrol_intent("执行当前巡检"));
         assert!(is_start_site_patrol_intent("现在开始场站巡检"));
