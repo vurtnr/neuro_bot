@@ -210,6 +210,10 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
         self._write_json(HTTPStatus.OK, result)
 
     def do_GET(self) -> None:
+        if self.path == "/inspection-events":
+            self._handle_global_inspection_events()
+            return
+
         prefix = "/inspection-sessions/"
         suffix = "/events"
         if not self.path.startswith(prefix) or not self.path.endswith(suffix):
@@ -251,6 +255,32 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
                     return
         finally:
             self.server.session_store.unsubscribe(request_id, queue)
+
+    def _handle_global_inspection_events(self) -> None:
+        queue, history = self.server.session_store.subscribe_global()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.end_headers()
+
+        try:
+            for item in history:
+                self.wfile.write(self.server.session_store.format_sse(item))
+                self.wfile.flush()
+
+            while True:
+                try:
+                    item = queue.get(timeout=15)
+                except Empty:
+                    self.wfile.write(b": keep-alive\n\n")
+                    self.wfile.flush()
+                    continue
+
+                self.wfile.write(self.server.session_store.format_sse(item))
+                self.wfile.flush()
+        finally:
+            self.server.session_store.unsubscribe_global(queue)
 
     def log_message(self, format: str, *args) -> None:
         self.server.ros_bridge.get_logger().info(format % args)

@@ -9,6 +9,10 @@ use modules::inspection::{
     Action as InspectionAction, Event as InspectionEvent, InspectionAngleSnapshot,
     InspectionCoordinator, InspectionRequest, InspectionStatusUpdate,
 };
+use modules::site_patrol::{
+    Action as SitePatrolAction, Event as SitePatrolEvent, SitePatrolCoordinator,
+    SitePatrolRequest, SitePatrolStatusUpdate,
+};
 use modules::state::{BrainEvent, NeuralLinkPayload, StateManager};
 use r2r;
 use r2r::robot_interfaces::msg::{
@@ -22,6 +26,7 @@ use std::future::{pending, Future};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::time;
 
 struct InspectionBleOutcome {
@@ -204,6 +209,84 @@ fn estimate_speech_duration(text: &str) -> Duration {
     Duration::from_secs(std::cmp::max(2, (text.chars().count() / 5) as u64))
 }
 
+fn publish_site_patrol_status(
+    publisher: &r2r::Publisher<InspectionStatus>,
+    state_manager: &StateManager,
+    update: SitePatrolStatusUpdate,
+) {
+    match update.stage.as_str() {
+        "patrol_started" => state_manager.set_busy("Site Patrol Active"),
+        "patrol_completed" | "patrol_failed" => state_manager.set_idle(),
+        _ => {}
+    }
+
+    let message = InspectionStatus {
+        request_id: update.request_id,
+        stage: update.stage,
+        success: update.success,
+        reason: update.reason,
+        message: update.message,
+        has_device_angles: false,
+        actual_angle: 0.0,
+        target_angle: 0.0,
+    };
+    let _ = publisher.publish(&message);
+}
+
+fn build_voice_site_patrol_request() -> SitePatrolRequest {
+    let request_millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or(0);
+
+    SitePatrolRequest {
+        request_id: format!("voice-site-patrol-{request_millis}"),
+        site_id: "qinghai-gonghexian".to_string(),
+        site_name: "青海场站".to_string(),
+        node_id: "ncu-5".to_string(),
+        node_label: "N5".to_string(),
+    }
+}
+
+fn is_start_site_patrol_intent(text: &str) -> bool {
+    let normalized = text
+        .chars()
+        .filter(|ch| !ch.is_whitespace())
+        .collect::<String>();
+
+    [
+        "开始巡检",
+        "现在开始巡检",
+        "开始当前巡检",
+        "执行巡检",
+        "开始场站巡检",
+    ]
+    .iter()
+    .any(|candidate| normalized.contains(candidate))
+}
+
+fn handle_site_patrol_actions(
+    actions: Vec<SitePatrolAction>,
+    inspection_status_pub: &r2r::Publisher<InspectionStatus>,
+    state_manager: &StateManager,
+    tts_publisher: &r2r::Publisher<StringMsg>,
+    pending_site_patrol_anomaly: &mut Option<Pin<Box<time::Sleep>>>,
+) {
+    for action in actions {
+        match action {
+            SitePatrolAction::PublishStatus(update) => {
+                publish_site_patrol_status(inspection_status_pub, state_manager, update);
+            }
+            SitePatrolAction::Speak(text) => {
+                let _ = tts_publisher.publish(&StringMsg { data: text });
+            }
+            SitePatrolAction::ScheduleAnomaly(delay) => {
+                *pending_site_patrol_anomaly = Some(Box::pin(time::sleep(delay)));
+            }
+        }
+    }
+}
+
 const COMPLETE_INSPECTION_ANNOUNCEMENT: &str =
     "本次巡检处理完成，设备已归档。我将断开当前连接，等待下一次任务。";
 
@@ -265,15 +348,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut coordinator = Coordinator::new();
     let mut inspection = InspectionCoordinator::new(Duration::from_secs(30));
+    let mut site_patrol = SitePatrolCoordinator::new(Duration::from_secs(10));
     let mut pending_control_ble: Option<Pin<Box<dyn Future<Output = BrainEvent>>>> = None;
     let mut pending_inspection_ble: Option<Pin<Box<dyn Future<Output = InspectionBleOutcome>>>> =
         None;
     let mut pending_inspection_announcement_done: Option<Pin<Box<time::Sleep>>> = None;
+    let mut pending_site_patrol_anomaly: Option<Pin<Box<time::Sleep>>> = None;
     let mut pending_completion_announcement_done: Option<Pin<Box<time::Sleep>>> = None;
     let mut pending_completion_disconnect: Option<Pin<Box<dyn Future<Output = (bool, String)>>>> =
         None;
     let mut pending_llm: Option<Pin<Box<dyn Future<Output = BrainEvent>>>> = None;
     let mut pending_audio_done: Option<Pin<Box<time::Sleep>>> = None;
+    let mut site_patrol_voice_lock_notified = false;
 
     let mut spin_interval = time::interval(Duration::from_millis(10));
     loop {
@@ -303,6 +389,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             req = inspection_service.next() => {
                 if let Some(req) = req {
+                    if req.message.node_id == "site-patrol" {
+                        let outcome = site_patrol.start(SitePatrolRequest {
+                            request_id: req.message.request_id.clone(),
+                            site_id: req.message.site_id.clone(),
+                            site_name: "青海场站".to_string(),
+                            node_id: "ncu-5".to_string(),
+                            node_label: "N5".to_string(),
+                        });
+                        let _ = req.respond(StartInspection::Response {
+                            accepted: outcome.accepted,
+                            message: outcome.message.clone(),
+                        });
+                        if outcome.accepted {
+                            site_patrol_voice_lock_notified = false;
+                        }
+                        handle_site_patrol_actions(
+                            outcome.actions,
+                            &inspection_status_pub,
+                            &state_manager,
+                            &tts_publisher,
+                            &mut pending_site_patrol_anomaly,
+                        );
+                        continue;
+                    }
+
                     let request = InspectionRequest {
                         request_id: req.message.request_id.clone(),
                         site_id: req.message.site_id.clone(),
@@ -402,6 +513,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             msg = speech_sub.next() => {
                 if let Some(msg) = msg {
                     if msg.is_final {
+                        if site_patrol.has_active_session() {
+                            if !site_patrol_voice_lock_notified {
+                                site_patrol_voice_lock_notified = true;
+                                let _ = tts_publisher.publish(&StringMsg {
+                                    data: "当前正在执行巡检任务，暂不接收语音指令".to_string(),
+                                });
+                            }
+                            continue;
+                        }
+
                         if inspection.has_active_session() {
                             println!("🤖 Inspection active, ignoring audio request");
                             continue;
@@ -420,9 +541,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             });
                             continue;
                         }
+
+                        if is_start_site_patrol_intent(&msg.text) {
+                            let outcome = site_patrol.start(build_voice_site_patrol_request());
+                            if outcome.accepted {
+                                site_patrol_voice_lock_notified = false;
+                            } else if !outcome.message.is_empty() {
+                                let _ = tts_publisher.publish(&StringMsg {
+                                    data: "机器人当前正在执行巡检任务，请稍后重试".to_string(),
+                                });
+                            }
+                            handle_site_patrol_actions(
+                                outcome.actions,
+                                &inspection_status_pub,
+                                &state_manager,
+                                &tts_publisher,
+                                &mut pending_site_patrol_anomaly,
+                            );
+                            continue;
+                        }
+
                         event_to_handle = Some(BrainEvent::AudioFinal(msg.text));
                     }
                 }
+            }
+            _ = async {
+                if let Some(fut) = pending_site_patrol_anomaly.as_mut() {
+                    fut.as_mut().await
+                } else {
+                    pending::<()>().await
+                }
+            } => {
+                pending_site_patrol_anomaly = None;
+                handle_site_patrol_actions(
+                    site_patrol.on_event(SitePatrolEvent::AnomalyTimerElapsed),
+                    &inspection_status_pub,
+                    &state_manager,
+                    &tts_publisher,
+                    &mut pending_site_patrol_anomaly,
+                );
+                site_patrol_voice_lock_notified = false;
             }
             result = async {
                 if let Some(fut) = pending_completion_disconnect.as_mut() {
