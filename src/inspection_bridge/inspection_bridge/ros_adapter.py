@@ -15,6 +15,11 @@ from robot_interfaces.srv import (
 
 from inspection_bridge.session_store import SessionStore
 
+QINGHAI_SITE_ID = "qinghai-gonghexian"
+QINGHAI_SITE_NAME = "青海场站"
+QINGHAI_ANOMALY_NODE_ID = "ncu-5"
+QINGHAI_ANOMALY_NODE_LABEL = "N5"
+
 
 @dataclass
 class StartInspectionCommand:
@@ -214,16 +219,25 @@ class RosInspectionBridge(Node):
         }
 
     def _handle_status(self, msg: InspectionStatus) -> None:
-        self.session_store.append_event(
-            msg.request_id,
-            {
-                "requestId": msg.request_id,
-                "event": msg.stage,
-                "success": msg.success,
-                "reason": msg.reason,
-                "message": msg.message,
-                "hasDeviceAngles": msg.has_device_angles,
-                "actualAngle": msg.actual_angle,
-                "targetAngle": msg.target_angle,
-            },
-        )
+        event = {
+            "requestId": msg.request_id,
+            "event": msg.stage,
+            "success": msg.success,
+            "reason": msg.reason,
+            "message": msg.message,
+            "hasDeviceAngles": msg.has_device_angles,
+            "actualAngle": msg.actual_angle,
+            "targetAngle": msg.target_angle,
+        }
+
+        if msg.stage.startswith("patrol_"):
+            event.update(
+                {
+                    "siteId": QINGHAI_SITE_ID,
+                    "siteName": QINGHAI_SITE_NAME,
+                    "nodeId": QINGHAI_ANOMALY_NODE_ID,
+                    "nodeLabel": QINGHAI_ANOMALY_NODE_LABEL,
+                }
+            )
+
+        self.session_store.append_event(msg.request_id, event)

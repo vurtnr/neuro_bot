@@ -6,6 +6,8 @@ from queue import Queue
 from threading import Lock
 from time import monotonic
 
+GLOBAL_STREAM_REQUEST_ID = "__inspection_broadcast__"
+
 
 @dataclass
 class Session:
@@ -29,11 +31,24 @@ class SessionStore:
         with self._lock:
             session = self._sessions.setdefault(request_id, Session(request_id=request_id))
             session.history.append(event)
-            if event.get("event") in {"success", "failed"}:
+            if event.get("event") in {
+                "success",
+                "failed",
+                "patrol_completed",
+                "patrol_failed",
+            }:
                 session.terminal = True
             subscribers = list(session.subscribers)
 
+            broadcast = self._sessions.setdefault(
+                GLOBAL_STREAM_REQUEST_ID, Session(request_id=GLOBAL_STREAM_REQUEST_ID)
+            )
+            broadcast.history.append(event)
+            broadcast_subscribers = list(broadcast.subscribers)
+
         for subscriber in subscribers:
+            subscriber.put(event)
+        for subscriber in broadcast_subscribers:
             subscriber.put(event)
 
     def subscribe(self, request_id: str) -> tuple[Queue, list[dict], bool]:
@@ -54,3 +69,16 @@ class SessionStore:
 
     def format_sse(self, payload: dict) -> bytes:
         return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8")
+
+    def subscribe_global(self) -> tuple[Queue, list[dict]]:
+        queue: Queue = Queue()
+        with self._lock:
+            session = self._sessions.setdefault(
+                GLOBAL_STREAM_REQUEST_ID, Session(request_id=GLOBAL_STREAM_REQUEST_ID)
+            )
+            history = list(session.history)
+            session.subscribers.append(queue)
+        return queue, history
+
+    def unsubscribe_global(self, queue: Queue) -> None:
+        self.unsubscribe(GLOBAL_STREAM_REQUEST_ID, queue)
