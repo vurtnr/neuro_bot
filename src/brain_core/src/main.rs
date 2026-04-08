@@ -448,6 +448,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             req = complete_inspection_service.next() => {
                 if let Some(req) = req {
+                    if site_patrol.has_active_session() {
+                        let _ = req.respond(CompleteInspection::Response {
+                            accepted: true,
+                            message: "site patrol work order completion accepted".to_string(),
+                        });
+                        handle_site_patrol_actions(
+                            site_patrol.on_event(SitePatrolEvent::WorkOrderCompleted),
+                            &inspection_status_pub,
+                            &state_manager,
+                            &tts_publisher,
+                            &mut pending_site_patrol_anomaly,
+                        );
+                        site_patrol_voice_lock_notified = false;
+                        continue;
+                    }
+
                     println!(
                         "🧾 [inspection] 收到工单完成指令: request_id={} site={} node={}",
                         req.message.request_id,
@@ -580,7 +596,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &tts_publisher,
                     &mut pending_site_patrol_anomaly,
                 );
-                site_patrol_voice_lock_notified = false;
             }
             result = async {
                 if let Some(fut) = pending_completion_disconnect.as_mut() {

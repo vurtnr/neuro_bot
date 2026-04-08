@@ -41,12 +41,14 @@ pub enum Action {
 pub enum Event {
     StartRequested(SitePatrolRequest),
     AnomalyTimerElapsed,
+    WorkOrderCompleted,
 }
 
 #[derive(Debug, Clone)]
 enum SessionState {
     Idle,
     Active { request: SitePatrolRequest },
+    AwaitingWorkOrderResolution { request: SitePatrolRequest },
 }
 
 pub struct StartOutcome {
@@ -114,7 +116,9 @@ impl SitePatrolCoordinator {
                 ]
             }
             (SessionState::Active { request }, Event::AnomalyTimerElapsed) => {
-                self.state = SessionState::Idle;
+                self.state = SessionState::AwaitingWorkOrderResolution {
+                    request: request.clone(),
+                };
 
                 vec![
                     Action::PublishStatus(SitePatrolStatusUpdate {
@@ -125,14 +129,21 @@ impl SitePatrolCoordinator {
                         message: SITE_PATROL_ANOMALY_MESSAGE.to_string(),
                     }),
                     Action::Speak(SITE_PATROL_ANOMALY_ANNOUNCEMENT.to_string()),
-                    Action::PublishStatus(SitePatrolStatusUpdate {
-                        request_id: request.request_id,
-                        stage: STAGE_PATROL_COMPLETED.to_string(),
-                        success: true,
-                        reason: String::new(),
-                        message: "场站巡检已完成".to_string(),
-                    }),
                 ]
+            }
+            (
+                SessionState::AwaitingWorkOrderResolution { request },
+                Event::WorkOrderCompleted,
+            ) => {
+                self.state = SessionState::Idle;
+
+                vec![Action::PublishStatus(SitePatrolStatusUpdate {
+                    request_id: request.request_id,
+                    stage: STAGE_PATROL_COMPLETED.to_string(),
+                    success: true,
+                    reason: String::new(),
+                    message: "异常设备工单已完成，场站巡检流程闭环".to_string(),
+                })]
             }
             _ => Vec::new(),
         }
@@ -177,13 +188,13 @@ mod tests {
     }
 
     #[test]
-    fn anomaly_timer_publishes_anomaly_and_completion() {
+    fn anomaly_timer_publishes_anomaly_and_keeps_session_active_until_completion() {
         let mut coordinator = SitePatrolCoordinator::new(Duration::from_secs(10));
         let _ = coordinator.start(build_request());
 
         let actions = coordinator.on_event(Event::AnomalyTimerElapsed);
 
-        assert!(!coordinator.has_active_session());
+        assert!(coordinator.has_active_session());
         assert!(matches!(
             actions.first(),
             Some(Action::PublishStatus(update))
@@ -194,10 +205,23 @@ mod tests {
             actions.get(1),
             Some(Action::Speak(text)) if text == SITE_PATROL_ANOMALY_ANNOUNCEMENT
         ));
+        assert_eq!(actions.len(), 2);
+    }
+
+    #[test]
+    fn work_order_completion_releases_site_patrol_voice_lock() {
+        let mut coordinator = SitePatrolCoordinator::new(Duration::from_secs(10));
+        let _ = coordinator.start(build_request());
+        let _ = coordinator.on_event(Event::AnomalyTimerElapsed);
+
+        let actions = coordinator.on_event(Event::WorkOrderCompleted);
+
+        assert!(!coordinator.has_active_session());
         assert!(matches!(
-            actions.get(2),
+            actions.first(),
             Some(Action::PublishStatus(update))
-                if update.stage == STAGE_PATROL_COMPLETED && update.success
+                if update.stage == STAGE_PATROL_COMPLETED
+                    && update.message == "异常设备工单已完成，场站巡检流程闭环"
         ));
     }
 }
