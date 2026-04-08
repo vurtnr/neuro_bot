@@ -254,15 +254,50 @@ fn is_start_site_patrol_intent(text: &str) -> bool {
         .filter(|ch| !ch.is_whitespace())
         .collect::<String>();
 
-    [
+    if normalized.is_empty() {
+        return false;
+    }
+
+    if ["不要", "不用", "取消", "停止", "结束"]
+        .iter()
+        .any(|candidate| normalized.contains(candidate))
+    {
+        return false;
+    }
+
+    let explicit_phrases = [
         "开始巡检",
         "现在开始巡检",
         "开始当前巡检",
         "执行巡检",
+        "进行巡检",
         "开始场站巡检",
-    ]
-    .iter()
-    .any(|candidate| normalized.contains(candidate))
+        "进行场站巡检",
+        "执行场站巡检",
+        "开始巡检任务",
+        "进行巡检任务",
+        "执行巡检任务",
+        "进行场站巡检任务",
+        "执行场站巡检任务",
+        "开始场站巡检任务",
+    ];
+
+    if explicit_phrases
+        .iter()
+        .any(|candidate| normalized.contains(candidate))
+    {
+        return true;
+    }
+
+    let contains_patrol_keyword =
+        normalized.contains("巡检") || normalized.contains("巡检任务");
+    let contains_start_keyword = normalized.contains("开始")
+        || normalized.contains("进行")
+        || normalized.contains("执行");
+    let contains_station_scope =
+        normalized.contains("场站") || normalized.contains("当前");
+
+    contains_patrol_keyword && contains_start_keyword && contains_station_scope
 }
 
 fn handle_site_patrol_actions(
@@ -289,6 +324,27 @@ fn handle_site_patrol_actions(
 
 const COMPLETE_INSPECTION_ANNOUNCEMENT: &str =
     "本次巡检处理完成，设备已归档。我将断开当前连接，等待下一次任务。";
+
+#[cfg(test)]
+mod tests {
+    use super::is_start_site_patrol_intent;
+
+    #[test]
+    fn matches_common_site_patrol_phrases() {
+        assert!(is_start_site_patrol_intent("开始巡检"));
+        assert!(is_start_site_patrol_intent("进行场站巡检任务"));
+        assert!(is_start_site_patrol_intent("执行当前巡检"));
+        assert!(is_start_site_patrol_intent("现在开始场站巡检"));
+    }
+
+    #[test]
+    fn rejects_negative_or_unrelated_phrases() {
+        assert!(!is_start_site_patrol_intent("不要开始巡检"));
+        assert!(!is_start_site_patrol_intent("取消巡检任务"));
+        assert!(!is_start_site_patrol_intent("读取设备数据"));
+        assert!(!is_start_site_patrol_intent("今天天气怎么样"));
+    }
+}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
