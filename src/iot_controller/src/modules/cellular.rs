@@ -28,6 +28,7 @@ impl CellularManager {
             "📡 Cellular Module Started. Listening on {}",
             self.port_name
         );
+        let mut missing_port_reported = false;
 
         // 正则表达式预编译
         let re_csq = Regex::new(r"\+CSQ: (\d+),(\d+)").unwrap();
@@ -38,6 +39,10 @@ impl CellularManager {
         loop {
             match tokio_serial::new(&self.port_name, self.baud_rate).open_native_async() {
                 Ok(mut port) => {
+                    if missing_port_reported {
+                        println!("✅ 4G Serial Recovered on {}", self.port_name);
+                        missing_port_reported = false;
+                    }
                     println!("✅ 4G Serial Connected!");
 
                     // 1. 开启 GPS (幂等操作，多发几次没关系)
@@ -120,6 +125,21 @@ impl CellularManager {
                     }
                 }
                 Err(e) => {
+                    let error_text = e.to_string();
+                    let port_missing = error_text.contains("No such file or directory");
+
+                    if port_missing {
+                        if !missing_port_reported {
+                            eprintln!(
+                                "⚠️ 4G port {} is missing: {}. Will keep retrying every 30s until the module is available.",
+                                self.port_name, e
+                            );
+                            missing_port_reported = true;
+                        }
+                        sleep(Duration::from_secs(30)).await;
+                        continue;
+                    }
+
                     eprintln!(
                         "⚠️ Cannot open 4G port ({}): {}. Retrying in 5s...",
                         self.port_name, e

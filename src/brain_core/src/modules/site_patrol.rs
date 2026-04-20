@@ -9,6 +9,8 @@ pub const SITE_PATROL_START_ANNOUNCEMENT: &str =
     "已接收巡检任务，当前进入场站巡检模式";
 pub const SITE_PATROL_ANOMALY_ANNOUNCEMENT: &str =
     "青海场站发现参数异常设备，已上报监控平台";
+pub const SITE_PATROL_COMPLETION_ANNOUNCEMENT: &str =
+    "异常设备工单处理完成，已提交至合作商工单平台，我会持续跟进，巡检任务结束。";
 pub const SITE_PATROL_ANOMALY_MESSAGE: &str =
     "发生巡检事件：检测到青海场站支架NCU N5 参数异常，已同步至场站监控，点击查看详细信息。";
 
@@ -137,13 +139,16 @@ impl SitePatrolCoordinator {
             ) => {
                 self.state = SessionState::Idle;
 
-                vec![Action::PublishStatus(SitePatrolStatusUpdate {
-                    request_id: request.request_id,
-                    stage: STAGE_PATROL_COMPLETED.to_string(),
-                    success: true,
-                    reason: String::new(),
-                    message: "异常设备工单已完成，场站巡检流程闭环".to_string(),
-                })]
+                vec![
+                    Action::PublishStatus(SitePatrolStatusUpdate {
+                        request_id: request.request_id,
+                        stage: STAGE_PATROL_COMPLETED.to_string(),
+                        success: true,
+                        reason: String::new(),
+                        message: "异常设备工单已完成，场站巡检流程闭环".to_string(),
+                    }),
+                    Action::Speak(SITE_PATROL_COMPLETION_ANNOUNCEMENT.to_string()),
+                ]
             }
             _ => Vec::new(),
         }
@@ -222,6 +227,10 @@ mod tests {
             Some(Action::PublishStatus(update))
                 if update.stage == STAGE_PATROL_COMPLETED
                     && update.message == "异常设备工单已完成，场站巡检流程闭环"
+        ));
+        assert!(matches!(
+            actions.get(1),
+            Some(Action::Speak(text)) if text == SITE_PATROL_COMPLETION_ANNOUNCEMENT
         ));
     }
 }

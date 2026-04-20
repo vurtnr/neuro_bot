@@ -273,12 +273,18 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
                 try:
                     item = queue.get(timeout=15)
                 except Empty:
-                    self.wfile.write(b": keep-alive\n\n")
-                    self.wfile.flush()
+                    try:
+                        self.wfile.write(b": keep-alive\n\n")
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError):
+                        return
                     continue
 
-                self.wfile.write(self.server.session_store.format_sse(item))
-                self.wfile.flush()
+                try:
+                    self.wfile.write(self.server.session_store.format_sse(item))
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    return
         finally:
             self.server.session_store.unsubscribe_global(queue)
 
