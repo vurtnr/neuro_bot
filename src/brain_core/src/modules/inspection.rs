@@ -15,6 +15,8 @@ const STAGE_QUERYING_DEVICE: &str = "querying_device";
 const STAGE_SUCCESS: &str = "success";
 const STAGE_FAILED: &str = "failed";
 const INSPECTION_PERMISSION_PROMPT: &str = "是否可以获取该设备数据？";
+const INSPECTION_SCAN_ANNOUNCEMENT: &str =
+    "已获得授权，现在进入扫码识别设备阶段。请向机器人提供设备二维码图片，并保持在镜头范围内。";
 
 #[derive(Debug, Clone)]
 pub struct InspectionRequest {
@@ -230,8 +232,26 @@ mod tests {
 
         assert_eq!(coordinator.mode(), Mode::WaitingForQr);
         assert!(matches!(
-            actions.last(),
+            actions
+                .iter()
+                .find(|action| matches!(action, Action::PublishStatus(update) if update.stage == STAGE_WAITING_FOR_QR)),
             Some(Action::PublishStatus(update)) if update.stage == STAGE_WAITING_FOR_QR
+        ));
+    }
+
+    #[test]
+    fn consent_announces_scan_qr_instruction() {
+        let mut coordinator = InspectionCoordinator::new(Duration::from_secs(30));
+        let _ = coordinator.start(build_request());
+        let _ = coordinator.on_event(Event::AnnouncementFinished);
+
+        let actions = coordinator.on_event(Event::PermissionVerdict {
+            verdict: PermissionVerdict::Consent,
+        });
+
+        assert!(matches!(
+            actions.iter().find(|action| matches!(action, Action::Speak(_))),
+            Some(Action::Speak(text)) if text == INSPECTION_SCAN_ANNOUNCEMENT
         ));
     }
 
@@ -410,14 +430,17 @@ impl InspectionCoordinator {
                     deadline: Instant::now() + self.scan_timeout,
                 };
 
-                vec![Action::PublishStatus(InspectionStatusUpdate {
-                    request_id,
-                    stage: STAGE_WAITING_FOR_QR.to_string(),
-                    success: false,
-                    reason: String::new(),
-                    message: format!("Waiting for robot to identify {node_label}"),
-                    angle_snapshot: None,
-                })]
+                vec![
+                    Action::PublishStatus(InspectionStatusUpdate {
+                        request_id,
+                        stage: STAGE_WAITING_FOR_QR.to_string(),
+                        success: false,
+                        reason: String::new(),
+                        message: format!("Waiting for robot to identify {node_label}"),
+                        angle_snapshot: None,
+                    }),
+                    Action::Speak(INSPECTION_SCAN_ANNOUNCEMENT.to_string()),
+                ]
             }
             (
                 SessionState::WaitingForPermission { request, .. },
