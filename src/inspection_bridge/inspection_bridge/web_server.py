@@ -251,7 +251,12 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(self.server.session_store.format_sse(item))
                 self.wfile.flush()
 
-                if item.get("event") in {"success", "failed"}:
+                if item.get("event") in {
+                    "success",
+                    "failed",
+                    "permission_denied",
+                    "permission_unresolved",
+                }:
                     return
         finally:
             self.server.session_store.unsubscribe(request_id, queue)

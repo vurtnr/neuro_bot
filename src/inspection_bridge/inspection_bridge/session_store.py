@@ -34,6 +34,8 @@ class SessionStore:
             if event.get("event") in {
                 "success",
                 "failed",
+                "permission_denied",
+                "permission_unresolved",
                 "patrol_completed",
                 "patrol_failed",
             }:
