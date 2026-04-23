@@ -3,13 +3,13 @@ const STAGE_SUPPORT_ESCALATION_REQUESTED: &str = "support_escalation_requested";
 const STAGE_SUPPORT_ESCALATION_SENT: &str = "support_escalation_sent";
 const STAGE_SUPPORT_ESCALATION_CANCELLED: &str = "support_escalation_cancelled";
 pub const SUPPORT_ESCALATION_PROMPT: &str =
-    "当前异常状态工单无法由机器人和AI自动确认根因。是否需要发送给天合光能运维部门寻求技术支持？";
+    "当前发现一条异常状态工单，无法明确诊断设备异常根因，是否需要寻求售后技术。";
 pub const SUPPORT_ESCALATION_SENT: &str =
-    "已将异常状态工单发送给天合光能运维部门，运维工程师会接入分析并提供技术支持。";
+    "当前已将异常工单的完整信息以及现场采集照片同步发送给天合光能售后技术支持部门，后续会持续跟进。";
 pub const SUPPORT_ESCALATION_CANCELLED: &str =
-    "已取消发送异常状态工单。如需技术支持，可以再次点击异常状态工单。";
+    "已取消本次售后技术升级请求。如需售后技术协助，可以再次点击异常状态工单。";
 pub const SUPPORT_ESCALATION_UNCLEAR: &str =
-    "我没有听清是否需要发送给天合光能运维部门，请直接回答发送或不发送。";
+    "我没有听清是否需要寻求售后技术，请直接回答需要或不需要。";
 
 #[derive(Debug, Clone)]
 pub struct SupportEscalationRequest {

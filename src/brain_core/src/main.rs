@@ -680,9 +680,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             pending_llm = Some(Box::pin(async move {
                                 let req = AskLLM::Request {
                                     question: format!(
-                                        "你现在是运维升级确认判定器。用户刚被机器人问到：是否需要将机器人和AI无法确定根因的异常状态工单发送给天合光能运维部门寻求技术支持？\
+                                        "你现在是运维升级确认判定器。用户刚被机器人问到：当前发现一条异常状态工单，无法明确诊断设备异常根因，是否需要寻求售后技术？\
         只返回 JSON，格式为 {{\"verdict\":\"confirm|cancel|unclear\"}}。\
-        用户回答：{}",
+                                        用户回答：{}",
                                         lowered
                                     ),
                                 };
