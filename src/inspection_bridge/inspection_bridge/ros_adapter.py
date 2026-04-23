@@ -19,6 +19,8 @@ QINGHAI_SITE_ID = "qinghai-gonghexian"
 QINGHAI_SITE_NAME = "青海场站"
 QINGHAI_ANOMALY_NODE_ID = "ncu-5"
 QINGHAI_ANOMALY_NODE_LABEL = "N5"
+QINGHAI_SUPPORT_ESCALATION_NODE_ID = "technical-support-escalation"
+QINGHAI_SUPPORT_ESCALATION_NODE_LABEL = "异常状态工单"
 
 
 @dataclass
@@ -237,6 +239,16 @@ class RosInspectionBridge(Node):
                     "siteName": QINGHAI_SITE_NAME,
                     "nodeId": QINGHAI_ANOMALY_NODE_ID,
                     "nodeLabel": QINGHAI_ANOMALY_NODE_LABEL,
+                }
+            )
+
+        if msg.stage.startswith("support_escalation_"):
+            event.update(
+                {
+                    "siteId": QINGHAI_SITE_ID,
+                    "siteName": QINGHAI_SITE_NAME,
+                    "nodeId": QINGHAI_SUPPORT_ESCALATION_NODE_ID,
+                    "nodeLabel": QINGHAI_SUPPORT_ESCALATION_NODE_LABEL,
                 }
             )
 

@@ -256,6 +256,8 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
                     "failed",
                     "permission_denied",
                     "permission_unresolved",
+                    "support_escalation_sent",
+                    "support_escalation_cancelled",
                 }:
                     return
         finally:
