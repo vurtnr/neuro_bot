@@ -1,4 +1,7 @@
 pub const SUPPORT_ESCALATION_NODE_ID: &str = "technical-support-escalation";
+const STAGE_SUPPORT_ESCALATION_REQUESTED: &str = "support_escalation_requested";
+const STAGE_SUPPORT_ESCALATION_SENT: &str = "support_escalation_sent";
+const STAGE_SUPPORT_ESCALATION_CANCELLED: &str = "support_escalation_cancelled";
 pub const SUPPORT_ESCALATION_PROMPT: &str =
     "当前异常状态工单无法由机器人和AI自动确认根因。是否需要发送给天合光能运维部门寻求技术支持？";
 pub const SUPPORT_ESCALATION_SENT: &str =
@@ -16,6 +19,15 @@ pub struct SupportEscalationRequest {
     pub node_label: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct SupportEscalationStatusUpdate {
+    pub request_id: String,
+    pub stage: String,
+    pub success: bool,
+    pub reason: String,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConfirmationVerdict {
     Confirm,
@@ -31,6 +43,7 @@ pub enum Event {
 
 #[derive(Debug, Clone)]
 pub enum Action {
+    PublishStatus(SupportEscalationStatusUpdate),
     Speak(String),
 }
 
@@ -85,26 +98,56 @@ impl SupportEscalationCoordinator {
     pub fn on_event(&mut self, event: Event) -> Vec<Action> {
         match (self.state.clone(), event) {
             (SessionState::Idle, Event::StartRequested(request)) => {
+                let request_id = request.request_id.clone();
                 self.state = SessionState::AwaitingConfirmation { request };
-                vec![Action::Speak(SUPPORT_ESCALATION_PROMPT.to_string())]
+                vec![
+                    Action::PublishStatus(SupportEscalationStatusUpdate {
+                        request_id,
+                        stage: STAGE_SUPPORT_ESCALATION_REQUESTED.to_string(),
+                        success: false,
+                        reason: String::new(),
+                        message: SUPPORT_ESCALATION_PROMPT.to_string(),
+                    }),
+                    Action::Speak(SUPPORT_ESCALATION_PROMPT.to_string()),
+                ]
             }
             (
-                SessionState::AwaitingConfirmation { .. },
+                SessionState::AwaitingConfirmation { request },
                 Event::ConfirmationVerdict {
                     verdict: ConfirmationVerdict::Confirm,
                 },
             ) => {
+                let request_id = request.request_id.clone();
                 self.state = SessionState::Idle;
-                vec![Action::Speak(SUPPORT_ESCALATION_SENT.to_string())]
+                vec![
+                    Action::PublishStatus(SupportEscalationStatusUpdate {
+                        request_id,
+                        stage: STAGE_SUPPORT_ESCALATION_SENT.to_string(),
+                        success: true,
+                        reason: String::new(),
+                        message: SUPPORT_ESCALATION_SENT.to_string(),
+                    }),
+                    Action::Speak(SUPPORT_ESCALATION_SENT.to_string()),
+                ]
             }
             (
-                SessionState::AwaitingConfirmation { .. },
+                SessionState::AwaitingConfirmation { request },
                 Event::ConfirmationVerdict {
                     verdict: ConfirmationVerdict::Cancel,
                 },
             ) => {
+                let request_id = request.request_id.clone();
                 self.state = SessionState::Idle;
-                vec![Action::Speak(SUPPORT_ESCALATION_CANCELLED.to_string())]
+                vec![
+                    Action::PublishStatus(SupportEscalationStatusUpdate {
+                        request_id,
+                        stage: STAGE_SUPPORT_ESCALATION_CANCELLED.to_string(),
+                        success: false,
+                        reason: "user_cancelled".to_string(),
+                        message: SUPPORT_ESCALATION_CANCELLED.to_string(),
+                    }),
+                    Action::Speak(SUPPORT_ESCALATION_CANCELLED.to_string()),
+                ]
             }
             (
                 SessionState::AwaitingConfirmation { request },
@@ -141,7 +184,7 @@ mod tests {
         assert!(outcome.accepted);
         assert!(coordinator.needs_confirmation_speech());
         assert!(matches!(
-            outcome.actions.first(),
+            outcome.actions.get(1),
             Some(Action::Speak(text)) if text == SUPPORT_ESCALATION_PROMPT
         ));
     }
@@ -158,6 +201,11 @@ mod tests {
         assert!(!coordinator.has_active_session());
         assert!(matches!(
             actions.first(),
+            Some(Action::PublishStatus(update))
+                if update.stage == STAGE_SUPPORT_ESCALATION_SENT && update.success
+        ));
+        assert!(matches!(
+            actions.get(1),
             Some(Action::Speak(text)) if text == SUPPORT_ESCALATION_SENT
         ));
     }

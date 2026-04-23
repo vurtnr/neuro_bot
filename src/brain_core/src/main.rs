@@ -244,11 +244,30 @@ fn publish_site_patrol_status(
 
 fn handle_support_escalation_actions(
     actions: Vec<SupportEscalationAction>,
+    inspection_status_pub: &r2r::Publisher<InspectionStatus>,
     state_manager: &StateManager,
     tts_publisher: &r2r::Publisher<StringMsg>,
 ) {
     for action in actions {
         match action {
+            SupportEscalationAction::PublishStatus(update) => {
+                let terminal = update.stage == "support_escalation_sent"
+                    || update.stage == "support_escalation_cancelled";
+                let message = InspectionStatus {
+                    request_id: update.request_id,
+                    stage: update.stage,
+                    success: update.success,
+                    reason: update.reason,
+                    message: update.message,
+                    has_device_angles: false,
+                    actual_angle: 0.0,
+                    target_angle: 0.0,
+                };
+                let _ = inspection_status_pub.publish(&message);
+                if terminal {
+                    state_manager.set_idle();
+                }
+            }
             SupportEscalationAction::Speak(text) => {
                 let _ = tts_publisher.publish(&StringMsg { data: text });
                 if !state_manager.is_online() {
@@ -504,6 +523,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         });
                         handle_support_escalation_actions(
                             outcome.actions,
+                            &inspection_status_pub,
                             &state_manager,
                             &tts_publisher,
                         );
@@ -904,6 +924,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         );
                         handle_support_escalation_actions(
                             actions,
+                            &inspection_status_pub,
                             &state_manager,
                             &tts_publisher,
                         );

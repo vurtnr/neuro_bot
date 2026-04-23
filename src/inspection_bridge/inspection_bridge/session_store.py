@@ -38,6 +38,8 @@ class SessionStore:
                 "permission_unresolved",
                 "patrol_completed",
                 "patrol_failed",
+                "support_escalation_sent",
+                "support_escalation_cancelled",
             }:
                 session.terminal = True
             subscribers = list(session.subscribers)
