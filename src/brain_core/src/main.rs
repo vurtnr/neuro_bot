@@ -7,7 +7,7 @@ use modules::coordinator::{
 use modules::emotion::EmotionManager;
 use modules::inspection::{
     Action as InspectionAction, Event as InspectionEvent, InspectionAngleSnapshot,
-    InspectionCoordinator, InspectionRequest, InspectionStatusUpdate,
+    InspectionCoordinator, InspectionRequest, InspectionStatusUpdate, PermissionVerdict,
 };
 use modules::site_patrol::{
     Action as SitePatrolAction, Event as SitePatrolEvent, SitePatrolCoordinator,
@@ -176,6 +176,11 @@ fn publish_inspection_status(
 ) {
     match update.stage.as_str() {
         "accepted" => state_manager.set_busy("Preparing Inspection"),
+        "permission_prompting" | "permission_retrying" => {
+            state_manager.set_busy("Requesting Permission")
+        }
+        "permission_listening" => state_manager.set_busy("Waiting for Permission"),
+        "permission_denied" | "permission_unresolved" => state_manager.set_idle(),
         "waiting_for_qr" => state_manager.set_busy("Waiting for QR"),
         "qr_detected" => state_manager.set_busy("QR Detected"),
         "ble_connecting" => state_manager.set_busy("BLE Connecting"),
@@ -597,7 +602,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             msg = speech_sub.next() => {
                 if let Some(msg) = msg {
                     if msg.is_final {
-                        if site_patrol.has_active_session() {
+                        if site_patrol.has_active_session() && !inspection.needs_permission_speech() {
                             if !site_patrol_voice_lock_notified {
                                 site_patrol_voice_lock_notified = true;
                                 let _ = tts_publisher.publish(&StringMsg {
@@ -607,8 +612,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             continue;
                         }
 
-                        if inspection.has_active_session() {
+                        if inspection.has_active_session() && !inspection.needs_permission_speech() {
                             println!("🤖 Inspection active, ignoring audio request");
+                            continue;
+                        }
+
+                        if inspection.needs_permission_speech() {
+                            let lowered = msg.text.trim().to_string();
+                            if lowered.is_empty() {
+                                continue;
+                            }
+
+                            let client = llm_client.clone();
+                            pending_llm = Some(Box::pin(async move {
+                                let req = AskLLM::Request {
+                                    question: format!(
+                                        "你现在是权限判定器。用户刚被机器人问到：是否可以获取该设备数据？\
+        只返回 JSON，格式为 {{\"verdict\":\"consent|refusal|unclear\"}}。\
+        用户回答：{}",
+                                        lowered
+                                    ),
+                                };
+                                match client.request(&req) {
+                                    Ok(future) => match future.await {
+                                        Ok(resp) => BrainEvent::AudioLlmResult {
+                                            success: resp.success,
+                                            answer: resp.answer,
+                                        },
+                                        Err(e) => BrainEvent::AudioLlmResult {
+                                            success: false,
+                                            answer: format!("ROS Call Error: {}", e),
+                                        },
+                                    },
+                                    Err(e) => BrainEvent::AudioLlmResult {
+                                        success: false,
+                                        answer: format!("Client Request Error: {}", e),
+                                    },
+                                }
+                            }));
                             continue;
                         }
 
@@ -728,7 +769,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             } => {
                 pending_inspection_announcement_done = None;
-                for action in inspection.on_event(InspectionEvent::AnnouncementFinished) {
+                let next_event = if inspection.needs_permission_speech() {
+                    InspectionEvent::PermissionPromptFinished
+                } else {
+                    InspectionEvent::AnnouncementFinished
+                };
+
+                for action in inspection.on_event(next_event) {
                     match action {
                         InspectionAction::PublishStatus(update) => {
                             publish_inspection_status(&inspection_status_pub, &state_manager, update);
@@ -754,6 +801,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             } => {
                 pending_llm = None;
+                if inspection.needs_permission_speech() {
+                    if let BrainEvent::AudioLlmResult { success, answer } = event {
+                        let verdict = if success {
+                            if answer.contains("\"consent\"") {
+                                PermissionVerdict::Consent
+                            } else if answer.contains("\"refusal\"") {
+                                PermissionVerdict::Refusal
+                            } else {
+                                PermissionVerdict::Unclear
+                            }
+                        } else {
+                            PermissionVerdict::Unclear
+                        };
+
+                        for action in inspection.on_event(InspectionEvent::PermissionVerdict { verdict }) {
+                            match action {
+                                InspectionAction::PublishStatus(update) => {
+                                    publish_inspection_status(&inspection_status_pub, &state_manager, update);
+                                }
+                                InspectionAction::Speak(text) => {
+                                    let _ = tts_publisher.publish(&StringMsg { data: text.clone() });
+                                    pending_inspection_announcement_done =
+                                        Some(Box::pin(time::sleep(estimate_speech_duration(&text))));
+                                }
+                                InspectionAction::RequestBle(req) => {
+                                    if pending_inspection_ble.is_none() {
+                                        pending_inspection_ble = Some(spawn_inspection_ble_request(bt_client.clone(), req));
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                }
                 event_to_handle = Some(event);
             }
             _ = async {

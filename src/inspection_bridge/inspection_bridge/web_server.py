@@ -251,7 +251,12 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(self.server.session_store.format_sse(item))
                 self.wfile.flush()
 
-                if item.get("event") in {"success", "failed"}:
+                if item.get("event") in {
+                    "success",
+                    "failed",
+                    "permission_denied",
+                    "permission_unresolved",
+                }:
                     return
         finally:
             self.server.session_store.unsubscribe(request_id, queue)
@@ -273,12 +278,18 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
                 try:
                     item = queue.get(timeout=15)
                 except Empty:
-                    self.wfile.write(b": keep-alive\n\n")
-                    self.wfile.flush()
+                    try:
+                        self.wfile.write(b": keep-alive\n\n")
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError):
+                        return
                     continue
 
-                self.wfile.write(self.server.session_store.format_sse(item))
-                self.wfile.flush()
+                try:
+                    self.wfile.write(self.server.session_store.format_sse(item))
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    return
         finally:
             self.server.session_store.unsubscribe_global(queue)
 

@@ -3,14 +3,18 @@ use super::state::NeuralLinkPayload;
 use std::time::{Duration, Instant};
 
 const STAGE_ACCEPTED: &str = "accepted";
+const STAGE_PERMISSION_PROMPTING: &str = "permission_prompting";
+const STAGE_PERMISSION_LISTENING: &str = "permission_listening";
+const STAGE_PERMISSION_RETRYING: &str = "permission_retrying";
+const STAGE_PERMISSION_DENIED: &str = "permission_denied";
+const STAGE_PERMISSION_UNRESOLVED: &str = "permission_unresolved";
 const STAGE_WAITING_FOR_QR: &str = "waiting_for_qr";
 const STAGE_QR_DETECTED: &str = "qr_detected";
 const STAGE_BLE_CONNECTING: &str = "ble_connecting";
 const STAGE_QUERYING_DEVICE: &str = "querying_device";
 const STAGE_SUCCESS: &str = "success";
 const STAGE_FAILED: &str = "failed";
-const INSPECTION_START_ANNOUNCEMENT: &str =
-    "收到远程巡检任务，开始执行设备扫码。请将二维码保持在镜头范围内。";
+const INSPECTION_PERMISSION_PROMPT: &str = "是否可以获取该设备数据？";
 
 #[derive(Debug, Clone)]
 pub struct InspectionRequest {
@@ -43,10 +47,21 @@ pub enum Action {
     RequestBle(BleRequest),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum PermissionVerdict {
+    Consent,
+    Refusal,
+    Unclear,
+}
+
 #[derive(Debug, Clone)]
 pub enum Event {
     StartRequested(InspectionRequest),
     AnnouncementFinished,
+    PermissionPromptFinished,
+    PermissionVerdict {
+        verdict: PermissionVerdict,
+    },
     VisionFound(NeuralLinkPayload),
     BleResult {
         success: bool,
@@ -58,7 +73,9 @@ pub enum Event {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Mode {
     Idle,
-    AnnouncingScan,
+    AnnouncingPermission,
+    WaitingForPermission,
+    RetryingPermission,
     WaitingForQr,
     BleQuerying,
 }
@@ -66,8 +83,13 @@ pub enum Mode {
 #[derive(Debug, Clone)]
 enum SessionState {
     Idle,
-    AnnouncingScan {
+    AnnouncingPermission {
         request: InspectionRequest,
+        attempt: u8,
+    },
+    WaitingForPermission {
+        request: InspectionRequest,
+        attempt: u8,
     },
     WaitingForQr {
         request: InspectionRequest,
@@ -118,15 +140,19 @@ mod tests {
         let outcome = coordinator.start(build_request());
 
         assert!(outcome.accepted);
-        assert_eq!(coordinator.mode(), Mode::AnnouncingScan);
+        assert_eq!(coordinator.mode(), Mode::AnnouncingPermission);
         assert!(matches!(
             outcome.actions.first(),
             Some(Action::PublishStatus(update)) if update.stage == STAGE_ACCEPTED
         ));
         assert!(matches!(
             outcome.actions.get(1),
+            Some(Action::PublishStatus(update)) if update.stage == STAGE_PERMISSION_PROMPTING
+        ));
+        assert!(matches!(
+            outcome.actions.get(2),
             Some(Action::Speak(text))
-                if text == INSPECTION_START_ANNOUNCEMENT
+                if text == INSPECTION_PERMISSION_PROMPT
         ));
         assert!(!outcome.actions.iter().any(|action| matches!(
             action,
@@ -141,10 +167,10 @@ mod tests {
         let _ = coordinator.start(build_request());
         let actions = coordinator.on_event(Event::AnnouncementFinished);
 
-        assert_eq!(coordinator.mode(), Mode::WaitingForQr);
+        assert_eq!(coordinator.mode(), Mode::WaitingForPermission);
         assert!(matches!(
             actions.first(),
-            Some(Action::PublishStatus(update)) if update.stage == STAGE_WAITING_FOR_QR
+            Some(Action::PublishStatus(update)) if update.stage == STAGE_PERMISSION_LISTENING
         ));
     }
 
@@ -155,6 +181,9 @@ mod tests {
 
         let _ = coordinator.start(request.clone());
         let _ = coordinator.on_event(Event::AnnouncementFinished);
+        let _ = coordinator.on_event(Event::PermissionVerdict {
+            verdict: PermissionVerdict::Consent,
+        });
         let _ = coordinator.on_event(Event::VisionFound(NeuralLinkPayload {
             t: "b".to_string(),
             m: "D6:65:62:A0:AD:E5".to_string(),
@@ -185,8 +214,79 @@ mod tests {
                     Some(snapshot)
                         if (snapshot.actual_angle - 12.1).abs() < 0.01
                             && (snapshot.target_angle - 12.3).abs() < 0.01
-                )
+            )
         ));
+    }
+
+    #[test]
+    fn consent_moves_from_permission_gate_into_waiting_for_qr() {
+        let mut coordinator = InspectionCoordinator::new(Duration::from_secs(30));
+        let _ = coordinator.start(build_request());
+
+        let _ = coordinator.on_event(Event::AnnouncementFinished);
+        let actions = coordinator.on_event(Event::PermissionVerdict {
+            verdict: PermissionVerdict::Consent,
+        });
+
+        assert_eq!(coordinator.mode(), Mode::WaitingForQr);
+        assert!(matches!(
+            actions.last(),
+            Some(Action::PublishStatus(update)) if update.stage == STAGE_WAITING_FOR_QR
+        ));
+    }
+
+    #[test]
+    fn refusal_ends_the_session_with_permission_denied() {
+        let mut coordinator = InspectionCoordinator::new(Duration::from_secs(30));
+        let _ = coordinator.start(build_request());
+        let _ = coordinator.on_event(Event::AnnouncementFinished);
+
+        let actions = coordinator.on_event(Event::PermissionVerdict {
+            verdict: PermissionVerdict::Refusal,
+        });
+
+        assert_eq!(coordinator.mode(), Mode::Idle);
+        assert!(matches!(
+            actions.last(),
+            Some(Action::PublishStatus(update)) if update.stage == STAGE_PERMISSION_DENIED
+        ));
+    }
+
+    #[test]
+    fn second_unclear_answer_ends_as_permission_unresolved() {
+        let mut coordinator = InspectionCoordinator::new(Duration::from_secs(30));
+        let _ = coordinator.start(build_request());
+        let _ = coordinator.on_event(Event::AnnouncementFinished);
+        let _ = coordinator.on_event(Event::PermissionVerdict {
+            verdict: PermissionVerdict::Unclear,
+        });
+        let _ = coordinator.on_event(Event::AnnouncementFinished);
+
+        let actions = coordinator.on_event(Event::PermissionVerdict {
+            verdict: PermissionVerdict::Unclear,
+        });
+
+        assert_eq!(coordinator.mode(), Mode::Idle);
+        assert!(matches!(
+            actions.last(),
+            Some(Action::PublishStatus(update)) if update.stage == STAGE_PERMISSION_UNRESOLVED
+        ));
+    }
+
+    #[test]
+    fn permission_stages_require_speech_but_scan_stages_do_not() {
+        let mut coordinator = InspectionCoordinator::new(Duration::from_secs(30));
+        let _ = coordinator.start(build_request());
+
+        assert!(coordinator.needs_permission_speech());
+
+        let _ = coordinator.on_event(Event::PermissionPromptFinished);
+        assert!(coordinator.needs_permission_speech());
+
+        let _ = coordinator.on_event(Event::PermissionVerdict {
+            verdict: PermissionVerdict::Consent,
+        });
+        assert!(!coordinator.needs_permission_speech());
     }
 }
 
@@ -210,7 +310,14 @@ impl InspectionCoordinator {
     pub fn mode(&self) -> Mode {
         match &self.state {
             SessionState::Idle => Mode::Idle,
-            SessionState::AnnouncingScan { .. } => Mode::AnnouncingScan,
+            SessionState::AnnouncingPermission { attempt, .. } if *attempt > 1 => {
+                Mode::RetryingPermission
+            }
+            SessionState::AnnouncingPermission { .. } => Mode::AnnouncingPermission,
+            SessionState::WaitingForPermission { attempt, .. } if *attempt > 1 => {
+                Mode::RetryingPermission
+            }
+            SessionState::WaitingForPermission { .. } => Mode::WaitingForPermission,
             SessionState::WaitingForQr { .. } => Mode::WaitingForQr,
             SessionState::BleQuerying { .. } => Mode::BleQuerying,
         }
@@ -218,6 +325,13 @@ impl InspectionCoordinator {
 
     pub fn has_active_session(&self) -> bool {
         !matches!(self.state, SessionState::Idle)
+    }
+
+    pub fn needs_permission_speech(&self) -> bool {
+        matches!(
+            self.state,
+            SessionState::AnnouncingPermission { .. } | SessionState::WaitingForPermission { .. }
+        )
     }
 
     pub fn start(&mut self, request: InspectionRequest) -> StartOutcome {
@@ -241,7 +355,10 @@ impl InspectionCoordinator {
         match (self.state.clone(), event) {
             (SessionState::Idle, Event::StartRequested(request)) => {
                 let request_id = request.request_id.clone();
-                self.state = SessionState::AnnouncingScan { request };
+                self.state = SessionState::AnnouncingPermission {
+                    request,
+                    attempt: 1,
+                };
 
                 vec![
                     Action::PublishStatus(InspectionStatusUpdate {
@@ -252,10 +369,40 @@ impl InspectionCoordinator {
                         message: "Inspection session accepted".to_string(),
                         angle_snapshot: None,
                     }),
-                    Action::Speak(INSPECTION_START_ANNOUNCEMENT.to_string()),
+                    Action::PublishStatus(InspectionStatusUpdate {
+                        request_id: request_id.clone(),
+                        stage: STAGE_PERMISSION_PROMPTING.to_string(),
+                        success: false,
+                        reason: String::new(),
+                        message: "Requesting spoken permission before reading device data"
+                            .to_string(),
+                        angle_snapshot: None,
+                    }),
+                    Action::Speak(INSPECTION_PERMISSION_PROMPT.to_string()),
                 ]
             }
-            (SessionState::AnnouncingScan { request }, Event::AnnouncementFinished) => {
+            (
+                SessionState::AnnouncingPermission { request, attempt },
+                Event::AnnouncementFinished | Event::PermissionPromptFinished,
+            ) => {
+                let request_id = request.request_id.clone();
+                self.state = SessionState::WaitingForPermission { request, attempt };
+
+                vec![Action::PublishStatus(InspectionStatusUpdate {
+                    request_id,
+                    stage: STAGE_PERMISSION_LISTENING.to_string(),
+                    success: false,
+                    reason: String::new(),
+                    message: "Waiting for spoken permission response".to_string(),
+                    angle_snapshot: None,
+                })]
+            }
+            (
+                SessionState::WaitingForPermission { request, .. },
+                Event::PermissionVerdict {
+                    verdict: PermissionVerdict::Consent,
+                },
+            ) => {
                 let request_id = request.request_id.clone();
                 let node_label = request.node_label.clone();
                 self.state = SessionState::WaitingForQr {
@@ -269,6 +416,67 @@ impl InspectionCoordinator {
                     success: false,
                     reason: String::new(),
                     message: format!("Waiting for robot to identify {node_label}"),
+                    angle_snapshot: None,
+                })]
+            }
+            (
+                SessionState::WaitingForPermission { request, .. },
+                Event::PermissionVerdict {
+                    verdict: PermissionVerdict::Refusal,
+                },
+            ) => {
+                let request_id = request.request_id.clone();
+                self.state = SessionState::Idle;
+
+                vec![Action::PublishStatus(InspectionStatusUpdate {
+                    request_id,
+                    stage: STAGE_PERMISSION_DENIED.to_string(),
+                    success: false,
+                    reason: "user_refused".to_string(),
+                    message: "User explicitly refused device data access".to_string(),
+                    angle_snapshot: None,
+                })]
+            }
+            (
+                SessionState::WaitingForPermission { request, attempt },
+                Event::PermissionVerdict {
+                    verdict: PermissionVerdict::Unclear,
+                },
+            ) if attempt < 2 => {
+                let request_id = request.request_id.clone();
+                self.state = SessionState::AnnouncingPermission {
+                    request,
+                    attempt: attempt + 1,
+                };
+
+                vec![
+                    Action::PublishStatus(InspectionStatusUpdate {
+                        request_id: request_id.clone(),
+                        stage: STAGE_PERMISSION_RETRYING.to_string(),
+                        success: false,
+                        reason: "permission_unclear".to_string(),
+                        message: "Retrying spoken permission request".to_string(),
+                        angle_snapshot: None,
+                    }),
+                    Action::Speak(INSPECTION_PERMISSION_PROMPT.to_string()),
+                ]
+            }
+            (
+                SessionState::WaitingForPermission { request, .. },
+                Event::PermissionVerdict {
+                    verdict: PermissionVerdict::Unclear,
+                },
+            ) => {
+                let request_id = request.request_id.clone();
+                self.state = SessionState::Idle;
+
+                vec![Action::PublishStatus(InspectionStatusUpdate {
+                    request_id,
+                    stage: STAGE_PERMISSION_UNRESOLVED.to_string(),
+                    success: false,
+                    reason: "permission_timeout".to_string(),
+                    message: "No explicit spoken permission received after two attempts"
+                        .to_string(),
                     angle_snapshot: None,
                 })]
             }
