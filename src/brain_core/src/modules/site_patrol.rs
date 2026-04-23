@@ -5,10 +5,8 @@ const STAGE_PATROL_ANOMALY_DETECTED: &str = "patrol_anomaly_detected";
 const STAGE_PATROL_COMPLETED: &str = "patrol_completed";
 const STAGE_PATROL_FAILED: &str = "patrol_failed";
 
-pub const SITE_PATROL_START_ANNOUNCEMENT: &str =
-    "已接收巡检任务，当前进入场站巡检模式";
-pub const SITE_PATROL_ANOMALY_ANNOUNCEMENT: &str =
-    "青海场站发现参数异常设备，已上报监控平台";
+pub const SITE_PATROL_START_ANNOUNCEMENT: &str = "已接收巡检任务，当前进入场站巡检模式";
+pub const SITE_PATROL_ANOMALY_ANNOUNCEMENT: &str = "青海场站发现参数异常设备，已上报监控平台";
 pub const SITE_PATROL_COMPLETION_ANNOUNCEMENT: &str =
     "异常设备工单处理完成，已提交至合作商工单平台，我会持续跟进，巡检任务结束。";
 pub const SITE_PATROL_ANOMALY_MESSAGE: &str =
@@ -133,10 +131,7 @@ impl SitePatrolCoordinator {
                     Action::Speak(SITE_PATROL_ANOMALY_ANNOUNCEMENT.to_string()),
                 ]
             }
-            (
-                SessionState::AwaitingWorkOrderResolution { request },
-                Event::WorkOrderCompleted,
-            ) => {
+            (SessionState::AwaitingWorkOrderResolution { request }, Event::WorkOrderCompleted) => {
                 self.state = SessionState::Idle;
 
                 vec![

@@ -10,10 +10,14 @@ use modules::inspection::{
     InspectionCoordinator, InspectionRequest, InspectionStatusUpdate, PermissionVerdict,
 };
 use modules::site_patrol::{
-    Action as SitePatrolAction, Event as SitePatrolEvent, SitePatrolCoordinator,
-    SitePatrolRequest, SitePatrolStatusUpdate,
+    Action as SitePatrolAction, Event as SitePatrolEvent, SitePatrolCoordinator, SitePatrolRequest,
+    SitePatrolStatusUpdate,
 };
 use modules::state::{BrainEvent, NeuralLinkPayload, StateManager};
+use modules::support_escalation::{
+    Action as SupportEscalationAction, ConfirmationVerdict, Event as SupportEscalationEvent,
+    SupportEscalationCoordinator, SupportEscalationRequest, SUPPORT_ESCALATION_NODE_ID,
+};
 use r2r;
 use r2r::robot_interfaces::msg::{
     AudioSpeech, BodyCommand, InspectionStatus, NetworkStatus, VisionResult,
@@ -238,6 +242,24 @@ fn publish_site_patrol_status(
     let _ = publisher.publish(&message);
 }
 
+fn handle_support_escalation_actions(
+    actions: Vec<SupportEscalationAction>,
+    state_manager: &StateManager,
+    tts_publisher: &r2r::Publisher<StringMsg>,
+) {
+    for action in actions {
+        match action {
+            SupportEscalationAction::Speak(text) => {
+                let _ = tts_publisher.publish(&StringMsg { data: text });
+                if !state_manager.is_online() {
+                    continue;
+                }
+                state_manager.set_busy("Support Escalation");
+            }
+        }
+    }
+}
+
 fn build_voice_site_patrol_request() -> SitePatrolRequest {
     let request_millis = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -302,15 +324,13 @@ fn is_start_site_patrol_intent(text: &str) -> bool {
         return true;
     }
 
-    let contains_patrol_keyword =
-        normalized.contains("巡检") || normalized.contains("巡检任务");
+    let contains_patrol_keyword = normalized.contains("巡检") || normalized.contains("巡检任务");
     let contains_start_keyword = normalized.contains("开始")
         || normalized.contains("开启")
         || normalized.contains("启动")
         || normalized.contains("进行")
         || normalized.contains("执行");
-    let contains_station_scope =
-        normalized.contains("场站") || normalized.contains("当前");
+    let contains_station_scope = normalized.contains("场站") || normalized.contains("当前");
 
     contains_patrol_keyword && contains_start_keyword && contains_station_scope
 }
@@ -422,6 +442,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut coordinator = Coordinator::new();
     let mut inspection = InspectionCoordinator::new(Duration::from_secs(30));
     let mut site_patrol = SitePatrolCoordinator::new(Duration::from_secs(10));
+    let mut support_escalation = SupportEscalationCoordinator::new();
     let mut pending_control_ble: Option<Pin<Box<dyn Future<Output = BrainEvent>>>> = None;
     let mut pending_inspection_ble: Option<Pin<Box<dyn Future<Output = InspectionBleOutcome>>>> =
         None;
@@ -462,6 +483,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             req = inspection_service.next() => {
                 if let Some(req) = req {
+                    if req.message.node_id == SUPPORT_ESCALATION_NODE_ID {
+                        if inspection.has_active_session() {
+                            let _ = req.respond(StartInspection::Response {
+                                accepted: false,
+                                message: "inspection_active".to_string(),
+                            });
+                            continue;
+                        }
+
+                        let outcome = support_escalation.start(SupportEscalationRequest {
+                            request_id: req.message.request_id.clone(),
+                            site_id: req.message.site_id.clone(),
+                            node_id: req.message.node_id.clone(),
+                            node_label: req.message.node_label.clone(),
+                        });
+                        let _ = req.respond(StartInspection::Response {
+                            accepted: outcome.accepted,
+                            message: outcome.message.clone(),
+                        });
+                        handle_support_escalation_actions(
+                            outcome.actions,
+                            &state_manager,
+                            &tts_publisher,
+                        );
+                        continue;
+                    }
+
                     if req.message.node_id == "site-patrol" {
                         let outcome = site_patrol.start(SitePatrolRequest {
                             request_id: req.message.request_id.clone(),
@@ -602,6 +650,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             msg = speech_sub.next() => {
                 if let Some(msg) = msg {
                     if msg.is_final {
+                        if support_escalation.needs_confirmation_speech() {
+                            let lowered = msg.text.trim().to_string();
+                            if lowered.is_empty() {
+                                continue;
+                            }
+
+                            let client = llm_client.clone();
+                            pending_llm = Some(Box::pin(async move {
+                                let req = AskLLM::Request {
+                                    question: format!(
+                                        "你现在是运维升级确认判定器。用户刚被机器人问到：是否需要将机器人和AI无法确定根因的异常状态工单发送给天合光能运维部门寻求技术支持？\
+        只返回 JSON，格式为 {{\"verdict\":\"confirm|cancel|unclear\"}}。\
+        用户回答：{}",
+                                        lowered
+                                    ),
+                                };
+                                match client.request(&req) {
+                                    Ok(future) => match future.await {
+                                        Ok(resp) => BrainEvent::AudioLlmResult {
+                                            success: resp.success,
+                                            answer: resp.answer,
+                                        },
+                                        Err(e) => BrainEvent::AudioLlmResult {
+                                            success: false,
+                                            answer: format!("ROS Call Error: {}", e),
+                                        },
+                                    },
+                                    Err(e) => BrainEvent::AudioLlmResult {
+                                        success: false,
+                                        answer: format!("Client Request Error: {}", e),
+                                    },
+                                }
+                            }));
+                            continue;
+                        }
+
                         if site_patrol.has_active_session() && !inspection.needs_permission_speech() {
                             if !site_patrol_voice_lock_notified {
                                 site_patrol_voice_lock_notified = true;
@@ -801,6 +885,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             } => {
                 pending_llm = None;
+                if support_escalation.needs_confirmation_speech() {
+                    if let BrainEvent::AudioLlmResult { success, answer } = event {
+                        let verdict = if success {
+                            if answer.contains("\"confirm\"") {
+                                ConfirmationVerdict::Confirm
+                            } else if answer.contains("\"cancel\"") {
+                                ConfirmationVerdict::Cancel
+                            } else {
+                                ConfirmationVerdict::Unclear
+                            }
+                        } else {
+                            ConfirmationVerdict::Unclear
+                        };
+
+                        let actions = support_escalation.on_event(
+                            SupportEscalationEvent::ConfirmationVerdict { verdict },
+                        );
+                        handle_support_escalation_actions(
+                            actions,
+                            &state_manager,
+                            &tts_publisher,
+                        );
+                        if !support_escalation.needs_confirmation_speech() {
+                            state_manager.set_idle();
+                        }
+                        continue;
+                    }
+                }
+
                 if inspection.needs_permission_speech() {
                     if let BrainEvent::AudioLlmResult { success, answer } = event {
                         let verdict = if success {
