@@ -1,0 +1,7 @@
+string request_id
+string site_id
+string node_id
+string node_label
+---
+bool accepted
+string message
