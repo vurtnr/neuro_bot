@@ -447,11 +447,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         r2r::QosProfile::services_default(),
     )?;
 
-    let mut skin_sub = node.subscribe::<r2r::robot_interfaces::msg::TactileEvent>(
-        "/skin/events",
-        r2r::QosProfile::default(),
-    )?;
-
     let state_for_net = state_manager.clone();
     tokio::spawn(async move {
         println!("📡 Network Monitor Started...");
@@ -655,49 +650,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 event_to_handle = Some(BrainEvent::VisionFound(payload));
                             }
                         }
-                    }
-                }
-            }
-            msg = skin_sub.next() => {
-                if let Some(msg) = msg {
-                    if msg.is_touch {
-                        println!(
-                            "🖐️ [Skin] Touch detected: {} | peak={:.0f} force={:.0f}",
-                            msg.label, msg.peak_value, msg.total_force
-                        );
-
-                        // 触觉 → 情绪映射
-                        let emotion_action = match msg.surface.as_str() {
-                            "chest" => CoordinatorAction::SetEmotion("happy".to_string()),
-                            "back" => CoordinatorAction::SetEmotion("thinking".to_string()),
-                            _ => CoordinatorAction::SetEmotion("neutral".to_string()),
-                        };
-                        // 直接执行情绪动作（或通过 coordinator 转发）
-                        match emotion_action {
-                            CoordinatorAction::SetEmotion(ref e) => match e.as_str() {
-                                "happy" => emotion_manager.set_happy(),
-                                "thinking" => emotion_manager.set_thinking(),
-                                _ => emotion_manager.set_neutral(),
-                            },
-                            _ => {}
-                        }
-
-                        // 触觉 → 身体反馈（例如被摸头时点头）
-                        if msg.region_v == "Upper" && msg.surface == "chest" {
-                            let _ = body_pub.publish(&BodyCommand {
-                                cmd: "nod".to_string(),
-                                params: json!({"speed": 0.5}).to_string(),
-                            });
-                        }
-
-                        // 将触觉事件转发给 coordinator 作为多模态输入
-                        event_to_handle = Some(BrainEvent::SkinTouch {
-                            surface: msg.surface,
-                            region_v: msg.region_v,
-                            region_h: msg.region_h,
-                            peak_value: msg.peak_value,
-                            total_force: msg.total_force,
-                        });
                     }
                 }
             }

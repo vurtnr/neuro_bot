@@ -271,20 +271,6 @@ impl Coordinator {
                     },
                 ]
             }
-            CoordinatorEvent::SkinTouch { surface, region_v, peak_value, .. } => {
-                // 示例：被触摸时如果正在说话，可以打断并回应
-                if self.mode == CoordinatorMode::AudioSpeaking {
-                    actions.push(CoordinatorAction::Speak(
-                        "有人在碰我，是需要帮助吗？".to_string()
-                    ));
-                }
-                // 或者将触觉作为上下文存入会话记忆
-                self.context.last_touch = Some((surface, region_v, *peak_value));
-                actions.push(CoordinatorAction::SetRobotState {
-                    state: "BUSY".to_string(),
-                    detail: format!("Touched on {}", surface),
-                });
-            }
             _ => Vec::new(),
         }
     }

@@ -37,26 +37,6 @@ def generate_launch_description():
             output='screen'
         ),
         
-        # 🟢 [新增] 电子皮肤驱动 (触觉感知硬件接口)
-        # 直接对接电阻阵列采集板，发布 /skin/events /skin/surfaces
-        Node(
-            package='skin_sensor',
-            executable='skin_node',
-            name='skin_sensor',
-            output='screen',
-            parameters=[{
-                'port': '/dev/ttyUSB1',
-                'baud': 921600,
-                'threshold': 50.0,
-                'ema_alpha': 0.35,
-                'spatial_mix': 0.18,
-                'calibrate_on_start': True,
-                'calibrate_frames': 20,
-                'baseline_path': '/home/neurobot/.config/neurobot/skin_baseline.json',
-                'publish_raw': False,
-            }],
-        ),
-        
         # IoT 控制器 (四肢: 蓝牙/电机)
         Node(
             package='iot_controller',

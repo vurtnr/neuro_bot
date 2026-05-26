@@ -113,13 +113,6 @@ pub enum BrainEvent {
     AudioLlmResult { success: bool, answer: String },
     AudioDone,
     Heartbeat,
-    SkinTouch {
-        surface: String,
-        region_v: String,
-        region_h: String,
-        peak_value: f32,
-        total_force: f32,
-    },
 }
 
 #[derive(Debug, Deserialize, Clone)]
