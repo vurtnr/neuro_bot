@@ -22,6 +22,7 @@ set(msg_files
   "msg/NetworkStatus.msg"
   "msg/BodyCommand.msg"
   "msg/InspectionStatus.msg"
+  "msg/SkinPressure.msg"
 )
 
 # 你的服务定义

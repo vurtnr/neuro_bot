@@ -5,7 +5,7 @@ import time
 
 import rclpy
 from rclpy.node import Node
-from robot_interfaces.msg import InspectionStatus
+from robot_interfaces.msg import InspectionStatus, SkinPressure
 from robot_interfaces.srv import (
     CaptureSnapshot,
     CompleteInspection,
@@ -76,6 +76,12 @@ class RosInspectionBridge(Node):
             InspectionStatus,
             "/inspection/status",
             self._handle_status,
+            10,
+        )
+        self.skin_subscription = self.create_subscription(
+            SkinPressure,
+            "/skin/pressure",
+            self._handle_skin_pressure,
             10,
         )
 
@@ -253,3 +259,23 @@ class RosInspectionBridge(Node):
             )
 
         self.session_store.append_event(msg.request_id, event)
+
+    def _handle_skin_pressure(self, msg: SkinPressure) -> None:
+        event = {
+            "event": msg.event_type,
+            "surface": msg.surface,
+            "region": msg.region,
+            "peakRow": msg.peak_row,
+            "peakCol": msg.peak_col,
+            "peakAdc": msg.peak_adc,
+            "normalizedPressure": msg.normalized_pressure,
+            "totalPressure": msg.total_pressure,
+            "activeCount": msg.active_count,
+            "validTouch": msg.valid_touch,
+            "timestamp": (
+                f"{msg.stamp.sec}.{msg.stamp.nanosec:09d}"
+                if hasattr(msg, "stamp")
+                else ""
+            ),
+        }
+        self.session_store.append_skin_event(event)

@@ -210,6 +210,10 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
         self._write_json(HTTPStatus.OK, result)
 
     def do_GET(self) -> None:
+        if self.path == "/skin-events":
+            self._handle_skin_events()
+            return
+
         if self.path == "/inspection-events":
             self._handle_global_inspection_events()
             return
@@ -294,6 +298,38 @@ class InspectionRequestHandler(BaseHTTPRequestHandler):
                     return
         finally:
             self.server.session_store.unsubscribe_global(queue)
+
+    def _handle_skin_events(self) -> None:
+        queue, history = self.server.session_store.subscribe_skin()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.end_headers()
+
+        try:
+            for item in history:
+                self.wfile.write(self.server.session_store.format_sse(item))
+                self.wfile.flush()
+
+            while True:
+                try:
+                    item = queue.get(timeout=15)
+                except Empty:
+                    try:
+                        self.wfile.write(b": keep-alive\n\n")
+                        self.wfile.flush()
+                    except (BrokenPipeError, ConnectionResetError):
+                        return
+                    continue
+
+                try:
+                    self.wfile.write(self.server.session_store.format_sse(item))
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    return
+        finally:
+            self.server.session_store.unsubscribe_skin(queue)
 
     def log_message(self, format: str, *args) -> None:
         self.server.ros_bridge.get_logger().info(format % args)

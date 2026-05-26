@@ -1,0 +1,7 @@
+# Project-local analysis exclusions.
+.understand-anything/
+.worktrees/
+.serena/
+__pycache__/
+*.pyc
+.DS_Store

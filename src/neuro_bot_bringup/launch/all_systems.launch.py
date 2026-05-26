@@ -53,6 +53,14 @@ def generate_launch_description():
             output='screen'
         ),
 
+        # 电子皮肤输入层：采集 32x16 压力阵列并发布 /skin/pressure
+        Node(
+            package='skin_engine',
+            executable='skin_node',
+            name='skin_engine',
+            output='screen'
+        ),
+
         # =========================================
         # 2. 能力服务层 (延迟 3秒)
         # =========================================

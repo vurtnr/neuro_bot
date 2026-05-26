@@ -1,0 +1,11 @@
+string event_type
+string surface
+string region
+int32 peak_row
+int32 peak_col
+float32 peak_adc
+float32 normalized_pressure
+float32 total_pressure
+int32 active_count
+bool valid_touch
+builtin_interfaces/Time stamp

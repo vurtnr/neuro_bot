@@ -7,6 +7,8 @@ from threading import Lock
 from time import monotonic
 
 GLOBAL_STREAM_REQUEST_ID = "__inspection_broadcast__"
+SKIN_STREAM_REQUEST_ID = "__skin_broadcast__"
+SKIN_HISTORY_LIMIT = 120
 
 
 @dataclass
@@ -86,3 +88,29 @@ class SessionStore:
 
     def unsubscribe_global(self, queue: Queue) -> None:
         self.unsubscribe(GLOBAL_STREAM_REQUEST_ID, queue)
+
+    def append_skin_event(self, event: dict) -> None:
+        with self._lock:
+            session = self._sessions.setdefault(
+                SKIN_STREAM_REQUEST_ID, Session(request_id=SKIN_STREAM_REQUEST_ID)
+            )
+            session.history.append(event)
+            if len(session.history) > SKIN_HISTORY_LIMIT:
+                del session.history[:-SKIN_HISTORY_LIMIT]
+            subscribers = list(session.subscribers)
+
+        for subscriber in subscribers:
+            subscriber.put(event)
+
+    def subscribe_skin(self) -> tuple[Queue, list[dict]]:
+        queue: Queue = Queue()
+        with self._lock:
+            session = self._sessions.setdefault(
+                SKIN_STREAM_REQUEST_ID, Session(request_id=SKIN_STREAM_REQUEST_ID)
+            )
+            history = list(session.history)
+            session.subscribers.append(queue)
+        return queue, history
+
+    def unsubscribe_skin(self, queue: Queue) -> None:
+        self.unsubscribe(SKIN_STREAM_REQUEST_ID, queue)

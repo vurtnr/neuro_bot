@@ -1,0 +1,5231 @@
+{
+  "version": "1.0.0",
+  "gitCommitHash": "70199c55956be2fa85bd9e6e91d24354596e9d1c",
+  "generatedAt": "2026-05-26T06:37:32.711Z",
+  "files": {
+    ".cargo/config.toml": {
+      "filePath": ".cargo/config.toml",
+      "contentHash": "6b62a185ae940a2abf474234d552be1272e73b9fbf8d21c97bf6dd4a25c4b158",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 2,
+      "hasStructuralAnalysis": true
+    },
+    "ble_debug.py": {
+      "filePath": "ble_debug.py",
+      "contentHash": "651dfead856e66fbb4c0543c15d1a62aaa7c2f54f28e520b648e8bf47562d485",
+      "functions": [
+        {
+          "name": "scan_devices",
+          "params": [],
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "inspect_device",
+          "params": [
+            "address"
+          ],
+          "exported": true,
+          "lineCount": 19
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": true,
+          "lineCount": 14
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "bleak",
+          "specifiers": [
+            "BleakScanner",
+            "BleakClient"
+          ]
+        }
+      ],
+      "exports": [
+        "scan_devices",
+        "inspect_device",
+        "main"
+      ],
+      "totalLines": 63,
+      "hasStructuralAnalysis": true
+    },
+    "CLAUDE.md": {
+      "filePath": "CLAUDE.md",
+      "contentHash": "697890fde5360ffc716df2767e5271019ceb341da1f7438b1f9167ebe0659194",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 76,
+      "hasStructuralAnalysis": true
+    },
+    "docs/plans/2026-01-23-brain-core-diagnosing-implementation-plan.md": {
+      "filePath": "docs/plans/2026-01-23-brain-core-diagnosing-implementation-plan.md",
+      "contentHash": "57e38490ce364c8fd2244e6c4b912769f43983135e5e3d51d0d01fa071ba275d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 196,
+      "hasStructuralAnalysis": true
+    },
+    "docs/plans/2026-01-26-ble-tcu-advertisement-design.md": {
+      "filePath": "docs/plans/2026-01-26-ble-tcu-advertisement-design.md",
+      "contentHash": "e691b1ab55a9c4f36602aad996c732200f7117a10e96316c70098075e45778d6",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 132,
+      "hasStructuralAnalysis": true
+    },
+    "docs/plans/2026-01-26-ble-tcu-response-design.md": {
+      "filePath": "docs/plans/2026-01-26-ble-tcu-response-design.md",
+      "contentHash": "95fcf515b58d759455e3abbceba666a5ffc600f8269c9e7916b1d5c969019be1",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 77,
+      "hasStructuralAnalysis": true
+    },
+    "generate_qr.py": {
+      "filePath": "generate_qr.py",
+      "contentHash": "a6ad71bb5d120a69d2331a72ebdb8a8de167cb395bfe4c88fe3eb561ef342aaf",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "qrcode",
+          "specifiers": [
+            "qrcode"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 29,
+      "hasStructuralAnalysis": true
+    },
+    "README.md": {
+      "filePath": "README.md",
+      "contentHash": "3d86a2374211542ddcf9e8f7e753ae50cd12fd361828fea8ec23e770023694fa",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 154,
+      "hasStructuralAnalysis": true
+    },
+    "run.sh": {
+      "filePath": "run.sh",
+      "contentHash": "874f619690406ae4b83367c9e32d2883dda57b7d803a4ea2bf6c3e5c432b90da",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "src/audio_engine/audio_engine/__init__.py": {
+      "filePath": "src/audio_engine/audio_engine/__init__.py",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": true
+    },
+    "src/audio_engine/audio_engine/audio_node.py": {
+      "filePath": "src/audio_engine/audio_engine/audio_node.py",
+      "contentHash": "397348e519ef2a237cefa097d1e1b0ebd2700f3de7970e146295d154fdf4217a",
+      "functions": [
+        {
+          "name": "main",
+          "params": [
+            "args"
+          ],
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "classes": [
+        {
+          "name": "AudioNode",
+          "methods": [
+            "__init__",
+            "_start_loop",
+            "start_asr_task",
+            "handle_tts_command",
+            "run_tts_pipeline_v3",
+            "wait_for_event",
+            "run_asr_pipeline",
+            "send_audio_loop",
+            "receive_asr_loop",
+            "publish_final"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 227
+        }
+      ],
+      "imports": [
+        {
+          "source": "rclpy",
+          "specifiers": [
+            "rclpy"
+          ]
+        },
+        {
+          "source": "rclpy.node",
+          "specifiers": [
+            "Node"
+          ]
+        },
+        {
+          "source": "std_msgs.msg",
+          "specifiers": [
+            "String"
+          ]
+        },
+        {
+          "source": "robot_interfaces.msg",
+          "specifiers": [
+            "AudioSpeech"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "uuid",
+          "specifiers": [
+            "uuid"
+          ]
+        },
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "websockets",
+          "specifiers": [
+            "websockets"
+          ]
+        },
+        {
+          "source": "threading",
+          "specifiers": [
+            "threading"
+          ]
+        },
+        {
+          "source": "sounddevice",
+          "specifiers": [
+            "sd"
+          ]
+        },
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "numpy",
+          "specifiers": [
+            "np"
+          ]
+        },
+        {
+          "source": "gzip",
+          "specifiers": [
+            "gzip"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "struct",
+          "specifiers": [
+            "struct"
+          ]
+        },
+        {
+          "source": "copy",
+          "specifiers": [
+            "copy"
+          ]
+        },
+        {
+          "source": "subprocess",
+          "specifiers": [
+            "subprocess"
+          ]
+        },
+        {
+          "source": "audio_engine.echo_guard",
+          "specifiers": [
+            "RecentSpeechGuard",
+            "SpeakingSessionCounter"
+          ]
+        }
+      ],
+      "exports": [
+        "AudioNode",
+        "main"
+      ],
+      "totalLines": 303,
+      "hasStructuralAnalysis": true
+    },
+    "src/audio_engine/audio_engine/echo_guard.py": {
+      "filePath": "src/audio_engine/audio_engine/echo_guard.py",
+      "contentHash": "b5c619ff21c010ac24f25b8a15b322e58846ecfa0f5cf8000574930d193e0383",
+      "functions": [
+        {
+          "name": "_normalize_text",
+          "params": [
+            "text"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 2
+        }
+      ],
+      "classes": [
+        {
+          "name": "SpeakingSessionCounter",
+          "methods": [
+            "start_session",
+            "finish_session",
+            "is_speaking"
+          ],
+          "properties": [
+            "_active_sessions"
+          ],
+          "exported": true,
+          "lineCount": 15
+        },
+        {
+          "name": "_RecentSpeech",
+          "methods": [],
+          "properties": [
+            "normalized_text",
+            "expires_at"
+          ],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "RecentSpeechGuard",
+          "methods": [
+            "remember_tts",
+            "should_ignore_asr",
+            "_matches_recent_speech",
+            "_prune",
+            "clear"
+          ],
+          "properties": [
+            "window_seconds",
+            "min_partial_chars",
+            "_recent_speeches"
+          ],
+          "exported": true,
+          "lineCount": 42
+        }
+      ],
+      "imports": [
+        {
+          "source": "collections",
+          "specifiers": [
+            "deque"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Deque"
+          ]
+        }
+      ],
+      "exports": [
+        "_normalize_text",
+        "SpeakingSessionCounter",
+        "_RecentSpeech",
+        "RecentSpeechGuard"
+      ],
+      "totalLines": 77,
+      "hasStructuralAnalysis": true
+    },
+    "src/audio_engine/audio_engine/protocols.py": {
+      "filePath": "src/audio_engine/audio_engine/protocols.py",
+      "contentHash": "dbc88723f540ec5658845dd4af9c9636f51da1ff1049f0295bcbc5cd01268e2a",
+      "functions": [
+        {
+          "name": "receive_message",
+          "params": [
+            "websocket"
+          ],
+          "returnType": "Message",
+          "exported": true,
+          "lineCount": 15
+        },
+        {
+          "name": "wait_for_event",
+          "params": [
+            "websocket",
+            "msg_type",
+            "event_type"
+          ],
+          "returnType": "Message",
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "full_client_request",
+          "params": [
+            "websocket",
+            "payload"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "audio_only_client",
+          "params": [
+            "websocket",
+            "payload",
+            "flag"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "start_connection",
+          "params": [
+            "websocket"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "finish_connection",
+          "params": [
+            "websocket"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "start_session",
+          "params": [
+            "websocket",
+            "payload",
+            "session_id"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "finish_session",
+          "params": [
+            "websocket",
+            "session_id"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "cancel_session",
+          "params": [
+            "websocket",
+            "session_id"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "task_request",
+          "params": [
+            "websocket",
+            "payload",
+            "session_id"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 10
+        }
+      ],
+      "classes": [
+        {
+          "name": "MsgType",
+          "methods": [
+            "__str__"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "MsgTypeFlagBits",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "VersionBits",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "HeaderSizeBits",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "SerializationBits",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "CompressionBits",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "EventType",
+          "methods": [
+            "__str__"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 75
+        },
+        {
+          "name": "Message",
+          "methods": [
+            "from_bytes",
+            "marshal",
+            "unmarshal",
+            "_get_writers",
+            "_get_readers",
+            "_write_event",
+            "_write_session_id",
+            "_write_sequence",
+            "_write_error_code",
+            "_write_payload",
+            "_read_event",
+            "_read_session_id",
+            "_read_connect_id",
+            "_read_sequence",
+            "_read_error_code",
+            "_read_payload",
+            "__str__"
+          ],
+          "properties": [
+            "version",
+            "header_size",
+            "type",
+            "flag",
+            "serialization",
+            "compression",
+            "event",
+            "session_id",
+            "connect_id",
+            "sequence",
+            "error_code",
+            "payload"
+          ],
+          "exported": true,
+          "lineCount": 273
+        }
+      ],
+      "imports": [
+        {
+          "source": "io",
+          "specifiers": [
+            "io"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "struct",
+          "specifiers": [
+            "struct"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass"
+          ]
+        },
+        {
+          "source": "enum",
+          "specifiers": [
+            "IntEnum"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Callable",
+            "List"
+          ]
+        },
+        {
+          "source": "websockets",
+          "specifiers": [
+            "websockets"
+          ]
+        }
+      ],
+      "exports": [
+        "MsgType",
+        "MsgTypeFlagBits",
+        "VersionBits",
+        "HeaderSizeBits",
+        "SerializationBits",
+        "CompressionBits",
+        "EventType",
+        "Message",
+        "receive_message",
+        "wait_for_event",
+        "full_client_request",
+        "audio_only_client",
+        "start_connection",
+        "finish_connection",
+        "start_session",
+        "finish_session",
+        "cancel_session",
+        "task_request"
+      ],
+      "totalLines": 544,
+      "hasStructuralAnalysis": true
+    },
+    "src/audio_engine/package.xml": {
+      "filePath": "src/audio_engine/package.xml",
+      "contentHash": "81358a45a1d62050561606cf05464b4ee3649f364d61ea70004029cd729f9660",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 18,
+      "hasStructuralAnalysis": false
+    },
+    "src/audio_engine/resource/audio_engine": {
+      "filePath": "src/audio_engine/resource/audio_engine",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": false
+    },
+    "src/audio_engine/setup.cfg": {
+      "filePath": "src/audio_engine/setup.cfg",
+      "contentHash": "e33d744799d68963d3bd0aec1bdd435a0bd5b5a1b07d900a95d90676657afdbe",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 5,
+      "hasStructuralAnalysis": false
+    },
+    "src/audio_engine/setup.py": {
+      "filePath": "src/audio_engine/setup.py",
+      "contentHash": "ce40d58e6f5bec4ae10bedebf0d349d29dfeee9577909ab955b83a3849d406f6",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "setuptools",
+          "specifiers": [
+            "setup"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "src/audio_engine/test/test_copyright.py": {
+      "filePath": "src/audio_engine/test/test_copyright.py",
+      "contentHash": "ea71bbbc6247b5c14d176ed09f39ee274d563cc9b2ec355828ea451ceff31757",
+      "functions": [
+        {
+          "name": "test_copyright",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "ament_copyright.main",
+          "specifiers": [
+            "main"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        }
+      ],
+      "exports": [
+        "test_copyright"
+      ],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "src/audio_engine/test/test_echo_guard.py": {
+      "filePath": "src/audio_engine/test/test_echo_guard.py",
+      "contentHash": "800c73554e1f856d987a8ba34ae3f99bd232b8682d2492df022b321cd925136b",
+      "functions": [],
+      "classes": [
+        {
+          "name": "RecentSpeechGuardTests",
+          "methods": [
+            "test_recent_tts_match_is_suppressed",
+            "test_different_text_is_not_suppressed",
+            "test_expired_guard_does_not_suppress",
+            "test_partial_prefix_of_recent_tts_is_suppressed",
+            "test_older_recent_tts_still_matches_after_newer_tts"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 49
+        },
+        {
+          "name": "SpeakingSessionCounterTests",
+          "methods": [
+            "test_mic_stays_muted_until_all_sessions_finish"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 13
+        }
+      ],
+      "imports": [
+        {
+          "source": "unittest",
+          "specifiers": [
+            "unittest"
+          ]
+        },
+        {
+          "source": "audio_engine.echo_guard",
+          "specifiers": [
+            "RecentSpeechGuard",
+            "SpeakingSessionCounter"
+          ]
+        }
+      ],
+      "exports": [
+        "RecentSpeechGuardTests",
+        "SpeakingSessionCounterTests"
+      ],
+      "totalLines": 74,
+      "hasStructuralAnalysis": true
+    },
+    "src/audio_engine/test/test_flake8.py": {
+      "filePath": "src/audio_engine/test/test_flake8.py",
+      "contentHash": "37a813a0507f0ce51a2d0b57312d2cc078a0307a3ca85580ea801b0d2f9755d2",
+      "functions": [
+        {
+          "name": "test_flake8",
+          "params": [],
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "ament_flake8.main",
+          "specifiers": [
+            "main_with_errors"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        }
+      ],
+      "exports": [
+        "test_flake8"
+      ],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "src/audio_engine/test/test_pep257.py": {
+      "filePath": "src/audio_engine/test/test_pep257.py",
+      "contentHash": "e8b88d49ee296987b1b40069f81019b5fa09b1aa1bfee9a1faae45bb5cf53eda",
+      "functions": [
+        {
+          "name": "test_pep257",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "ament_pep257.main",
+          "specifiers": [
+            "main"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        }
+      ],
+      "exports": [
+        "test_pep257"
+      ],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    "src/brain_core/Cargo.toml": {
+      "filePath": "src/brain_core/Cargo.toml",
+      "contentHash": "ae678d99cbf2c1bab948eda3b9e68320b12a3072efcc1de9efc18bf5d7a26041",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 16,
+      "hasStructuralAnalysis": true
+    },
+    "src/brain_core/package.xml": {
+      "filePath": "src/brain_core/package.xml",
+      "contentHash": "d7221b2b0dcf3e4c46bdf3778c8968e05bf1c0d13737a979a815ec282ced942a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 18,
+      "hasStructuralAnalysis": false
+    },
+    "src/brain_core/src/main.rs": {
+      "filePath": "src/brain_core/src/main.rs",
+      "contentHash": "25375372231a4855ffcc97aefc74e36f17e64bef8af53ac8f5ba3b27f6053329",
+      "functions": [
+        {
+          "name": "spawn_control_ble_request",
+          "params": [
+            "client",
+            "req"
+          ],
+          "returnType": "Pin<Box<dyn Future<Output = BrainEvent>>>",
+          "exported": false,
+          "lineCount": 33
+        },
+        {
+          "name": "spawn_inspection_ble_request",
+          "params": [
+            "client",
+            "req"
+          ],
+          "returnType": "Pin<Box<dyn Future<Output = InspectionBleOutcome>>>",
+          "exported": false,
+          "lineCount": 65
+        },
+        {
+          "name": "spawn_disconnect_ble_request",
+          "params": [
+            "client"
+          ],
+          "returnType": "Pin<Box<dyn Future<Output = (bool, String)>>>",
+          "exported": false,
+          "lineCount": 33
+        },
+        {
+          "name": "publish_inspection_status",
+          "params": [
+            "publisher",
+            "state_manager",
+            "update"
+          ],
+          "exported": false,
+          "lineCount": 40
+        },
+        {
+          "name": "estimate_speech_duration",
+          "params": [
+            "text"
+          ],
+          "returnType": "Duration",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "publish_site_patrol_status",
+          "params": [
+            "publisher",
+            "state_manager",
+            "update"
+          ],
+          "exported": false,
+          "lineCount": 23
+        },
+        {
+          "name": "handle_support_escalation_actions",
+          "params": [
+            "actions",
+            "inspection_status_pub",
+            "state_manager",
+            "tts_publisher"
+          ],
+          "exported": false,
+          "lineCount": 36
+        },
+        {
+          "name": "build_voice_site_patrol_request",
+          "params": [],
+          "returnType": "SitePatrolRequest",
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "is_start_site_patrol_intent",
+          "params": [
+            "text"
+          ],
+          "returnType": "bool",
+          "exported": false,
+          "lineCount": 59
+        },
+        {
+          "name": "handle_site_patrol_actions",
+          "params": [
+            "actions",
+            "inspection_status_pub",
+            "state_manager",
+            "tts_publisher",
+            "pending_site_patrol_anomaly"
+          ],
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "main",
+          "params": [],
+          "returnType": "Result<(), Box<dyn std::error::Error>>",
+          "exported": false,
+          "lineCount": 669
+        }
+      ],
+      "classes": [
+        {
+          "name": "InspectionBleOutcome",
+          "methods": [],
+          "properties": [
+            "success",
+            "message",
+            "angle_snapshot"
+          ],
+          "exported": false,
+          "lineCount": 5
+        }
+      ],
+      "imports": [
+        {
+          "source": "futures",
+          "specifiers": [
+            "StreamExt"
+          ]
+        },
+        {
+          "source": "modules::coordinator",
+          "specifiers": [
+            "Coordinator"
+          ]
+        },
+        {
+          "source": "modules::emotion",
+          "specifiers": [
+            "EmotionManager"
+          ]
+        },
+        {
+          "source": "modules::inspection",
+          "specifiers": [
+            "InspectionAngleSnapshot",
+            "InspectionCoordinator",
+            "InspectionRequest",
+            "InspectionStatusUpdate",
+            "PermissionVerdict"
+          ]
+        },
+        {
+          "source": "modules::site_patrol",
+          "specifiers": [
+            "SitePatrolCoordinator",
+            "SitePatrolRequest",
+            "SitePatrolStatusUpdate"
+          ]
+        },
+        {
+          "source": "modules::state",
+          "specifiers": [
+            "BrainEvent",
+            "NeuralLinkPayload",
+            "StateManager"
+          ]
+        },
+        {
+          "source": "modules::support_escalation",
+          "specifiers": [
+            "ConfirmationVerdict",
+            "SupportEscalationCoordinator",
+            "SupportEscalationRequest",
+            "SUPPORT_ESCALATION_NODE_ID"
+          ]
+        },
+        {
+          "source": "r2r",
+          "specifiers": [
+            "r2r"
+          ]
+        },
+        {
+          "source": "r2r::robot_interfaces::msg",
+          "specifiers": [
+            "AudioSpeech",
+            "BodyCommand",
+            "InspectionStatus",
+            "NetworkStatus",
+            "VisionResult"
+          ]
+        },
+        {
+          "source": "r2r::robot_interfaces::srv",
+          "specifiers": [
+            "AskLLM",
+            "CompleteInspection",
+            "ConnectBluetooth",
+            "DisconnectBluetooth",
+            "StartInspection"
+          ]
+        },
+        {
+          "source": "r2r::std_msgs::msg::String as StringMsg",
+          "specifiers": [
+            "r2r::std_msgs::msg::String as StringMsg"
+          ]
+        },
+        {
+          "source": "std::future",
+          "specifiers": [
+            "pending",
+            "Future"
+          ]
+        },
+        {
+          "source": "std::pin",
+          "specifiers": [
+            "Pin"
+          ]
+        },
+        {
+          "source": "std::sync",
+          "specifiers": [
+            "Arc"
+          ]
+        },
+        {
+          "source": "std::time",
+          "specifiers": [
+            "Duration"
+          ]
+        },
+        {
+          "source": "std::time",
+          "specifiers": [
+            "SystemTime",
+            "UNIX_EPOCH"
+          ]
+        },
+        {
+          "source": "tokio",
+          "specifiers": [
+            "time"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 1075,
+      "hasStructuralAnalysis": true
+    },
+    "src/brain_core/src/modules/coordinator.rs": {
+      "filePath": "src/brain_core/src/modules/coordinator.rs",
+      "contentHash": "9e699c2fff3c7a37f7dc6317884b40ab5807cfd3379f24c14d8e33de8da2e9f9",
+      "functions": [
+        {
+          "name": "normalize_uuid_field",
+          "params": [
+            "value"
+          ],
+          "returnType": "String",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "normalize_command_field",
+          "params": [
+            "value"
+          ],
+          "returnType": "String",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "new",
+          "params": [],
+          "returnType": "Self",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "mode",
+          "params": [],
+          "returnType": "Mode",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "on_event",
+          "params": [
+            "event"
+          ],
+          "returnType": "Vec<Action>",
+          "exported": true,
+          "lineCount": 185
+        }
+      ],
+      "classes": [
+        {
+          "name": "LlmResponse",
+          "methods": [],
+          "properties": [
+            "r#type",
+            "intent",
+            "cmd",
+            "params",
+            "reply"
+          ],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "Mode",
+          "methods": [],
+          "properties": [
+            "Idle",
+            "BleConnecting",
+            "AudioThinking",
+            "AudioSpeaking"
+          ],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "Event",
+          "methods": [],
+          "properties": [
+            "VisionFound",
+            "BleResult",
+            "AudioFinal",
+            "AudioLlmResult",
+            "AudioDone"
+          ],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "Action",
+          "methods": [],
+          "properties": [
+            "Speak",
+            "StartLlm",
+            "SetEmotion",
+            "SetRobotState",
+            "RequestBle",
+            "BodyMove"
+          ],
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "BleRequest",
+          "methods": [],
+          "properties": [
+            "mac",
+            "service_uuid",
+            "characteristic_uuid",
+            "command"
+          ],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "Coordinator",
+          "methods": [
+            "new",
+            "mode",
+            "on_event"
+          ],
+          "properties": [
+            "mode",
+            "current_gimbal_angle",
+            "connected_device"
+          ],
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "imports": [
+        {
+          "source": "super::state",
+          "specifiers": [
+            "NeuralLinkPayload"
+          ]
+        },
+        {
+          "source": "serde",
+          "specifiers": [
+            "Deserialize"
+          ]
+        }
+      ],
+      "exports": [
+        "Mode",
+        "Event",
+        "Action",
+        "BleRequest",
+        "Coordinator",
+        "new",
+        "mode",
+        "on_event"
+      ],
+      "totalLines": 278,
+      "hasStructuralAnalysis": true
+    },
+    "src/brain_core/src/modules/emotion.rs": {
+      "filePath": "src/brain_core/src/modules/emotion.rs",
+      "contentHash": "22361b7deaebfe64eb07a3ba6b05571e633b5395331c2bf6a6336cc42e15db8c",
+      "functions": [
+        {
+          "name": "new",
+          "params": [
+            "node"
+          ],
+          "returnType": "Result<Self, r2r::Error>",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "set_happy",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "set_thinking",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "set_neutral",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "set_listening",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "publish",
+          "params": [
+            "emotion_str"
+          ],
+          "exported": false,
+          "lineCount": 11
+        }
+      ],
+      "classes": [
+        {
+          "name": "EmotionManager",
+          "methods": [
+            "new",
+            "set_happy",
+            "set_thinking",
+            "set_neutral",
+            "set_listening",
+            "publish"
+          ],
+          "properties": [
+            "publisher"
+          ],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "imports": [
+        {
+          "source": "r2r",
+          "specifiers": [
+            "r2r"
+          ]
+        },
+        {
+          "source": "r2r::robot_interfaces::msg",
+          "specifiers": [
+            "FaceEmotion"
+          ]
+        }
+      ],
+      "exports": [
+        "EmotionManager",
+        "new",
+        "set_happy",
+        "set_thinking",
+        "set_neutral",
+        "set_listening"
+      ],
+      "totalLines": 48,
+      "hasStructuralAnalysis": true
+    },
+    "src/brain_core/src/modules/inspection.rs": {
+      "filePath": "src/brain_core/src/modules/inspection.rs",
+      "contentHash": "d97b973ca59be02dd6f84b3932a06d113bca4933b165250c09cee2cb086d349a",
+      "functions": [
+        {
+          "name": "normalize_uuid_field",
+          "params": [
+            "value"
+          ],
+          "returnType": "String",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "normalize_command_field",
+          "params": [
+            "value"
+          ],
+          "returnType": "String",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "new",
+          "params": [
+            "scan_timeout"
+          ],
+          "returnType": "Self",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "mode",
+          "params": [],
+          "returnType": "Mode",
+          "exported": true,
+          "lineCount": 15
+        },
+        {
+          "name": "has_active_session",
+          "params": [],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "needs_permission_speech",
+          "params": [],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "start",
+          "params": [
+            "request"
+          ],
+          "returnType": "StartOutcome",
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "on_event",
+          "params": [
+            "event"
+          ],
+          "returnType": "Vec<Action>",
+          "exported": true,
+          "lineCount": 206
+        },
+        {
+          "name": "poll_timeout",
+          "params": [],
+          "returnType": "Vec<Action>",
+          "exported": true,
+          "lineCount": 17
+        }
+      ],
+      "classes": [
+        {
+          "name": "InspectionRequest",
+          "methods": [],
+          "properties": [
+            "request_id",
+            "site_id",
+            "node_id",
+            "node_label"
+          ],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "InspectionAngleSnapshot",
+          "methods": [],
+          "properties": [
+            "actual_angle",
+            "target_angle"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "InspectionStatusUpdate",
+          "methods": [],
+          "properties": [
+            "request_id",
+            "stage",
+            "success",
+            "reason",
+            "message",
+            "angle_snapshot"
+          ],
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "Action",
+          "methods": [],
+          "properties": [
+            "PublishStatus",
+            "Speak",
+            "RequestBle"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "PermissionVerdict",
+          "methods": [],
+          "properties": [
+            "Consent",
+            "Refusal",
+            "Unclear"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "Event",
+          "methods": [],
+          "properties": [
+            "StartRequested",
+            "AnnouncementFinished",
+            "PermissionPromptFinished",
+            "PermissionVerdict",
+            "VisionFound",
+            "BleResult"
+          ],
+          "exported": true,
+          "lineCount": 14
+        },
+        {
+          "name": "Mode",
+          "methods": [],
+          "properties": [
+            "Idle",
+            "AnnouncingPermission",
+            "WaitingForPermission",
+            "RetryingPermission",
+            "WaitingForQr",
+            "BleQuerying"
+          ],
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "SessionState",
+          "methods": [],
+          "properties": [
+            "Idle",
+            "AnnouncingPermission",
+            "WaitingForPermission",
+            "WaitingForQr",
+            "BleQuerying"
+          ],
+          "exported": false,
+          "lineCount": 18
+        },
+        {
+          "name": "StartOutcome",
+          "methods": [],
+          "properties": [
+            "accepted",
+            "message",
+            "actions"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "InspectionCoordinator",
+          "methods": [
+            "new",
+            "mode",
+            "has_active_session",
+            "needs_permission_speech",
+            "start",
+            "on_event",
+            "poll_timeout"
+          ],
+          "properties": [
+            "state",
+            "scan_timeout"
+          ],
+          "exported": true,
+          "lineCount": 4
+        }
+      ],
+      "imports": [
+        {
+          "source": "super::coordinator",
+          "specifiers": [
+            "BleRequest"
+          ]
+        },
+        {
+          "source": "super::state",
+          "specifiers": [
+            "NeuralLinkPayload"
+          ]
+        },
+        {
+          "source": "std::time",
+          "specifiers": [
+            "Duration",
+            "Instant"
+          ]
+        }
+      ],
+      "exports": [
+        "InspectionRequest",
+        "InspectionAngleSnapshot",
+        "InspectionStatusUpdate",
+        "Action",
+        "PermissionVerdict",
+        "Event",
+        "Mode",
+        "StartOutcome",
+        "InspectionCoordinator",
+        "new",
+        "mode",
+        "has_active_session",
+        "needs_permission_speech",
+        "start",
+        "on_event",
+        "poll_timeout"
+      ],
+      "totalLines": 599,
+      "hasStructuralAnalysis": true
+    },
+    "src/brain_core/src/modules/mod.rs": {
+      "filePath": "src/brain_core/src/modules/mod.rs",
+      "contentHash": "7e087fae30cc04511d6967e9528259c1ac32d341d98eaca256932480e75224c7",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 8,
+      "hasStructuralAnalysis": true
+    },
+    "src/brain_core/src/modules/site_patrol.rs": {
+      "filePath": "src/brain_core/src/modules/site_patrol.rs",
+      "contentHash": "650481c3dda8a7562b83682e92b1dfa9dfde832d6c2fc6ba202e411360efae8d",
+      "functions": [
+        {
+          "name": "new",
+          "params": [
+            "anomaly_delay"
+          ],
+          "returnType": "Self",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "has_active_session",
+          "params": [],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "start",
+          "params": [
+            "request"
+          ],
+          "returnType": "StartOutcome",
+          "exported": true,
+          "lineCount": 22
+        },
+        {
+          "name": "on_event",
+          "params": [
+            "event"
+          ],
+          "returnType": "Vec<Action>",
+          "exported": true,
+          "lineCount": 51
+        }
+      ],
+      "classes": [
+        {
+          "name": "SitePatrolRequest",
+          "methods": [],
+          "properties": [
+            "request_id",
+            "site_id",
+            "site_name",
+            "node_id",
+            "node_label"
+          ],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "SitePatrolStatusUpdate",
+          "methods": [],
+          "properties": [
+            "request_id",
+            "stage",
+            "success",
+            "reason",
+            "message"
+          ],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "Action",
+          "methods": [],
+          "properties": [
+            "PublishStatus",
+            "Speak",
+            "ScheduleAnomaly"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "Event",
+          "methods": [],
+          "properties": [
+            "StartRequested",
+            "AnomalyTimerElapsed",
+            "WorkOrderCompleted"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "SessionState",
+          "methods": [],
+          "properties": [
+            "Idle",
+            "Active",
+            "AwaitingWorkOrderResolution"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "StartOutcome",
+          "methods": [],
+          "properties": [
+            "accepted",
+            "message",
+            "actions"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "SitePatrolCoordinator",
+          "methods": [
+            "new",
+            "has_active_session",
+            "start",
+            "on_event"
+          ],
+          "properties": [
+            "state",
+            "anomaly_delay"
+          ],
+          "exported": true,
+          "lineCount": 4
+        }
+      ],
+      "imports": [
+        {
+          "source": "std::time",
+          "specifiers": [
+            "Duration"
+          ]
+        }
+      ],
+      "exports": [
+        "SitePatrolRequest",
+        "SitePatrolStatusUpdate",
+        "Action",
+        "Event",
+        "StartOutcome",
+        "SitePatrolCoordinator",
+        "new",
+        "has_active_session",
+        "start",
+        "on_event"
+      ],
+      "totalLines": 232,
+      "hasStructuralAnalysis": true
+    },
+    "src/brain_core/src/modules/state.rs": {
+      "filePath": "src/brain_core/src/modules/state.rs",
+      "contentHash": "e9962d037abdf42d461f857ab20df1f599b941ce6c6f1dd7e596606d215d4c42",
+      "functions": [
+        {
+          "name": "new",
+          "params": [
+            "node"
+          ],
+          "returnType": "Result<Self, r2r::Error>",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "set_online",
+          "params": [
+            "online"
+          ],
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "is_online",
+          "params": [],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "set_idle",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "set_listening",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "set_thinking",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "set_speaking",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "set_busy",
+          "params": [
+            "reason"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "can_accept_audio",
+          "params": [],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "can_accept_vision_task",
+          "params": [],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "publish_state",
+          "params": [
+            "id",
+            "state_str",
+            "detail_str"
+          ],
+          "exported": false,
+          "lineCount": 11
+        }
+      ],
+      "classes": [
+        {
+          "name": "StateManager",
+          "methods": [
+            "new",
+            "set_online",
+            "is_online",
+            "set_idle",
+            "set_listening",
+            "set_thinking",
+            "set_speaking",
+            "set_busy",
+            "can_accept_audio",
+            "can_accept_vision_task",
+            "publish_state"
+          ],
+          "properties": [
+            "publisher",
+            "current_state",
+            "is_online"
+          ],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "BtLifecycle",
+          "methods": [],
+          "properties": [
+            "Idle",
+            "Connecting",
+            "Connected",
+            "Failed"
+          ],
+          "exported": true,
+          "lineCount": 14
+        },
+        {
+          "name": "BrainEvent",
+          "methods": [],
+          "properties": [
+            "VisionFound",
+            "BleResult",
+            "AudioFinal",
+            "AudioLlmResult",
+            "AudioDone",
+            "Heartbeat"
+          ],
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "NeuralLinkPayload",
+          "methods": [],
+          "properties": [
+            "t",
+            "m",
+            "s",
+            "c",
+            "d",
+            "n"
+          ],
+          "exported": true,
+          "lineCount": 24
+        }
+      ],
+      "imports": [
+        {
+          "source": "r2r::robot_interfaces::msg",
+          "specifiers": [
+            "RobotState"
+          ]
+        },
+        {
+          "source": "r2r",
+          "specifiers": [
+            "Publisher",
+            "QosProfile"
+          ]
+        },
+        {
+          "source": "serde",
+          "specifiers": [
+            "Deserialize"
+          ]
+        },
+        {
+          "source": "std::sync",
+          "specifiers": [
+            "Arc",
+            "Mutex"
+          ]
+        },
+        {
+          "source": "std::time",
+          "specifiers": [
+            "Instant"
+          ]
+        }
+      ],
+      "exports": [
+        "StateManager",
+        "new",
+        "set_online",
+        "is_online",
+        "set_idle",
+        "set_listening",
+        "set_thinking",
+        "set_speaking",
+        "set_busy",
+        "can_accept_audio",
+        "can_accept_vision_task",
+        "BtLifecycle",
+        "BrainEvent",
+        "NeuralLinkPayload"
+      ],
+      "totalLines": 143,
+      "hasStructuralAnalysis": true
+    },
+    "src/brain_core/src/modules/support_escalation.rs": {
+      "filePath": "src/brain_core/src/modules/support_escalation.rs",
+      "contentHash": "24c32ed5d5699b6e16c411a4e724d79b76dd69022206f491e5004da1f9c35e5e",
+      "functions": [
+        {
+          "name": "new",
+          "params": [],
+          "returnType": "Self",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "has_active_session",
+          "params": [],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "needs_confirmation_speech",
+          "params": [],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "start",
+          "params": [
+            "request"
+          ],
+          "returnType": "StartOutcome",
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "on_event",
+          "params": [
+            "event"
+          ],
+          "returnType": "Vec<Action>",
+          "exported": true,
+          "lineCount": 66
+        }
+      ],
+      "classes": [
+        {
+          "name": "SupportEscalationRequest",
+          "methods": [],
+          "properties": [
+            "request_id",
+            "site_id",
+            "node_id",
+            "node_label"
+          ],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "SupportEscalationStatusUpdate",
+          "methods": [],
+          "properties": [
+            "request_id",
+            "stage",
+            "success",
+            "reason",
+            "message"
+          ],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "ConfirmationVerdict",
+          "methods": [],
+          "properties": [
+            "Confirm",
+            "Cancel",
+            "Unclear"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "Event",
+          "methods": [],
+          "properties": [
+            "StartRequested",
+            "ConfirmationVerdict"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "Action",
+          "methods": [],
+          "properties": [
+            "PublishStatus",
+            "Speak"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "SessionState",
+          "methods": [],
+          "properties": [
+            "Idle",
+            "AwaitingConfirmation"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "StartOutcome",
+          "methods": [],
+          "properties": [
+            "accepted",
+            "message",
+            "actions"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "SupportEscalationCoordinator",
+          "methods": [
+            "new",
+            "has_active_session",
+            "needs_confirmation_speech",
+            "start",
+            "on_event"
+          ],
+          "properties": [
+            "state"
+          ],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "imports": [],
+      "exports": [
+        "SupportEscalationRequest",
+        "SupportEscalationStatusUpdate",
+        "ConfirmationVerdict",
+        "Event",
+        "Action",
+        "StartOutcome",
+        "SupportEscalationCoordinator",
+        "new",
+        "has_active_session",
+        "needs_confirmation_speech",
+        "start",
+        "on_event"
+      ],
+      "totalLines": 213,
+      "hasStructuralAnalysis": true
+    },
+    "src/face_bridge/Cargo.toml": {
+      "filePath": "src/face_bridge/Cargo.toml",
+      "contentHash": "64f4fcddb60b646af8149b17a5d3232f232ec6ad95c603817e46c87d7bcf93f6",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 16,
+      "hasStructuralAnalysis": true
+    },
+    "src/face_bridge/package.xml": {
+      "filePath": "src/face_bridge/package.xml",
+      "contentHash": "7ccbc48c1fc51e037ef5ebe342de9a042e7d7eddeda79481e5183e4cb82c07d0",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 18,
+      "hasStructuralAnalysis": false
+    },
+    "src/face_bridge/src/main.rs": {
+      "filePath": "src/face_bridge/src/main.rs",
+      "contentHash": "12b1e9c00bbcbcba736534f58b272cba9608b7383188c88caa27de788e719f22",
+      "functions": [
+        {
+          "name": "main",
+          "params": [],
+          "returnType": "Result<(), Box<dyn std::error::Error>>",
+          "exported": false,
+          "lineCount": 86
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "r2r",
+          "specifiers": [
+            "r2r"
+          ]
+        },
+        {
+          "source": "r2r::robot_interfaces::msg",
+          "specifiers": [
+            "FaceEmotion",
+            "RobotState"
+          ]
+        },
+        {
+          "source": "futures",
+          "specifiers": [
+            "StreamExt"
+          ]
+        },
+        {
+          "source": "tokio",
+          "specifiers": [
+            "task"
+          ]
+        },
+        {
+          "source": "std::sync",
+          "specifiers": [
+            "mpsc"
+          ]
+        },
+        {
+          "source": "std",
+          "specifiers": [
+            "thread"
+          ]
+        },
+        {
+          "source": "std::time",
+          "specifiers": [
+            "Duration"
+          ]
+        },
+        {
+          "source": "serialport",
+          "specifiers": [
+            "serialport"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 96,
+      "hasStructuralAnalysis": true
+    },
+    "src/inspection_bridge/inspection_bridge/__init__.py": {
+      "filePath": "src/inspection_bridge/inspection_bridge/__init__.py",
+      "contentHash": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 2,
+      "hasStructuralAnalysis": true
+    },
+    "src/inspection_bridge/inspection_bridge/ros_adapter.py": {
+      "filePath": "src/inspection_bridge/inspection_bridge/ros_adapter.py",
+      "contentHash": "c9ed02b09a0561fa4079907a33857f5cc4b54b155cef842ea46fecfc452294d6",
+      "functions": [],
+      "classes": [
+        {
+          "name": "StartInspectionCommand",
+          "methods": [],
+          "properties": [
+            "request_id",
+            "site_id",
+            "node_id",
+            "node_label"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "CaptureSnapshotCommand",
+          "methods": [],
+          "properties": [
+            "request_id",
+            "site_id",
+            "node_id",
+            "node_label"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "CompleteInspectionCommand",
+          "methods": [],
+          "properties": [
+            "request_id",
+            "site_id",
+            "node_id",
+            "node_label"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "ManualAngleControlCommand",
+          "methods": [],
+          "properties": [
+            "request_id",
+            "site_id",
+            "node_id",
+            "node_label",
+            "direction",
+            "has_delta_angle",
+            "delta_angle"
+          ],
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "RosInspectionBridge",
+          "methods": [
+            "__init__",
+            "start_inspection",
+            "capture_snapshot",
+            "complete_inspection",
+            "manual_angle_control",
+            "_handle_status"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 195
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "rclpy",
+          "specifiers": [
+            "rclpy"
+          ]
+        },
+        {
+          "source": "rclpy.node",
+          "specifiers": [
+            "Node"
+          ]
+        },
+        {
+          "source": "robot_interfaces.msg",
+          "specifiers": [
+            "InspectionStatus"
+          ]
+        },
+        {
+          "source": "robot_interfaces.srv",
+          "specifiers": [
+            "CaptureSnapshot",
+            "CompleteInspection",
+            "ManualAngleControl",
+            "StartInspection"
+          ]
+        },
+        {
+          "source": "inspection_bridge.session_store",
+          "specifiers": [
+            "SessionStore"
+          ]
+        }
+      ],
+      "exports": [
+        "StartInspectionCommand",
+        "CaptureSnapshotCommand",
+        "CompleteInspectionCommand",
+        "ManualAngleControlCommand",
+        "RosInspectionBridge"
+      ],
+      "totalLines": 256,
+      "hasStructuralAnalysis": true
+    },
+    "src/inspection_bridge/inspection_bridge/session_store.py": {
+      "filePath": "src/inspection_bridge/inspection_bridge/session_store.py",
+      "contentHash": "87407cf89c8ec46f992f8f3af9a26b0587ad62a0037d5601a814e651adc257cc",
+      "functions": [],
+      "classes": [
+        {
+          "name": "Session",
+          "methods": [],
+          "properties": [
+            "request_id",
+            "created_at",
+            "history",
+            "subscribers",
+            "terminal"
+          ],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "SessionStore",
+          "methods": [
+            "__init__",
+            "ensure_session",
+            "append_event",
+            "subscribe",
+            "unsubscribe",
+            "format_sse",
+            "subscribe_global",
+            "unsubscribe_global"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 68
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "queue",
+          "specifiers": [
+            "Queue"
+          ]
+        },
+        {
+          "source": "threading",
+          "specifiers": [
+            "Lock"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "monotonic"
+          ]
+        }
+      ],
+      "exports": [
+        "Session",
+        "SessionStore"
+      ],
+      "totalLines": 89,
+      "hasStructuralAnalysis": true
+    },
+    "src/inspection_bridge/inspection_bridge/web_server.py": {
+      "filePath": "src/inspection_bridge/inspection_bridge/web_server.py",
+      "contentHash": "3830b7152973a881e6074b97a19abf76574c997ad0aa22212c29c905ca5e68fe",
+      "functions": [
+        {
+          "name": "main",
+          "params": [
+            "args"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 24
+        }
+      ],
+      "classes": [
+        {
+          "name": "InspectionRequestHandler",
+          "methods": [
+            "end_headers",
+            "do_OPTIONS",
+            "do_POST",
+            "_handle_start_inspection",
+            "_handle_capture_snapshot",
+            "_handle_complete_work_order",
+            "_handle_manual_angle_control",
+            "do_GET",
+            "_handle_global_inspection_events",
+            "log_message",
+            "_read_json_body",
+            "_parse_required_fields",
+            "_write_json"
+          ],
+          "properties": [
+            "server"
+          ],
+          "exported": true,
+          "lineCount": 314
+        },
+        {
+          "name": "InspectionHttpServer",
+          "methods": [
+            "__init__"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "imports": [
+        {
+          "source": "http",
+          "specifiers": [
+            "HTTPStatus"
+          ]
+        },
+        {
+          "source": "http.server",
+          "specifiers": [
+            "BaseHTTPRequestHandler",
+            "ThreadingHTTPServer"
+          ]
+        },
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "queue",
+          "specifiers": [
+            "Empty"
+          ]
+        },
+        {
+          "source": "threading",
+          "specifiers": [
+            "Thread"
+          ]
+        },
+        {
+          "source": "rclpy",
+          "specifiers": [
+            "rclpy"
+          ]
+        },
+        {
+          "source": "inspection_bridge.ros_adapter",
+          "specifiers": [
+            "CaptureSnapshotCommand",
+            "CompleteInspectionCommand",
+            "ManualAngleControlCommand",
+            "RosInspectionBridge",
+            "StartInspectionCommand"
+          ]
+        },
+        {
+          "source": "inspection_bridge.session_store",
+          "specifiers": [
+            "SessionStore"
+          ]
+        }
+      ],
+      "exports": [
+        "InspectionRequestHandler",
+        "InspectionHttpServer",
+        "main"
+      ],
+      "totalLines": 376,
+      "hasStructuralAnalysis": true
+    },
+    "src/inspection_bridge/package.xml": {
+      "filePath": "src/inspection_bridge/package.xml",
+      "contentHash": "582cdafc32f1b28ce262c881f58b6138f9d4b0b14a7bcea699f2a2fd971bb36f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 21,
+      "hasStructuralAnalysis": false
+    },
+    "src/inspection_bridge/resource/inspection_bridge": {
+      "filePath": "src/inspection_bridge/resource/inspection_bridge",
+      "contentHash": "b30928933a54581fa5c8ab9fcfd176d16411e98f41ac146c776c6d33d59a070c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 2,
+      "hasStructuralAnalysis": false
+    },
+    "src/inspection_bridge/setup.cfg": {
+      "filePath": "src/inspection_bridge/setup.cfg",
+      "contentHash": "654fb9ebf315797a2aebe815182e9dfddbbd0e60837be984bfa0c1fbf54fdc92",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 5,
+      "hasStructuralAnalysis": false
+    },
+    "src/inspection_bridge/setup.py": {
+      "filePath": "src/inspection_bridge/setup.py",
+      "contentHash": "9d07a06f4121377b2b20334485f54e8f9386f61befba9c005921927a31e7c4ee",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "setuptools",
+          "specifiers": [
+            "find_packages",
+            "setup"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 29,
+      "hasStructuralAnalysis": true
+    },
+    "src/inspection_bridge/test/test_permission_events.py": {
+      "filePath": "src/inspection_bridge/test/test_permission_events.py",
+      "contentHash": "e8bf0dd207bdd77f7c5ae2c396f68179bf6a96d60ee0d334f40aaa4ce0a5ddf7",
+      "functions": [
+        {
+          "name": "test_permission_terminal_events_end_session_stream",
+          "params": [],
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "test_support_escalation_terminal_events_end_session_stream",
+          "params": [],
+          "exported": true,
+          "lineCount": 20
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "inspection_bridge.session_store",
+          "specifiers": [
+            "SessionStore"
+          ]
+        }
+      ],
+      "exports": [
+        "test_permission_terminal_events_end_session_stream",
+        "test_support_escalation_terminal_events_end_session_stream"
+      ],
+      "totalLines": 42,
+      "hasStructuralAnalysis": true
+    },
+    "src/inspection_bridge/test/test_session_store.py": {
+      "filePath": "src/inspection_bridge/test/test_session_store.py",
+      "contentHash": "36a5bc4f54193e151e7a37ba9c0b98a109d1c3112935843460147682faab0bdd",
+      "functions": [
+        {
+          "name": "test_session_store_replays_history_to_new_subscriber",
+          "params": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "test_session_store_marks_terminal_event",
+          "params": [],
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "queue",
+          "specifiers": [
+            "Empty"
+          ]
+        },
+        {
+          "source": "inspection_bridge.session_store",
+          "specifiers": [
+            "SessionStore"
+          ]
+        }
+      ],
+      "exports": [
+        "test_session_store_replays_history_to_new_subscriber",
+        "test_session_store_marks_terminal_event"
+      ],
+      "totalLines": 29,
+      "hasStructuralAnalysis": true
+    },
+    "src/iot_controller/Cargo.toml": {
+      "filePath": "src/iot_controller/Cargo.toml",
+      "contentHash": "f6d7b9419a20642d7ce30ed42d56e463c4570d1536fb43fb54c989f2177f232c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 20,
+      "hasStructuralAnalysis": true
+    },
+    "src/iot_controller/package.xml": {
+      "filePath": "src/iot_controller/package.xml",
+      "contentHash": "deaf59124a7d0ae98bc3cacba609380701fb4478129e7e3dc87ea7084664b3aa",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 18,
+      "hasStructuralAnalysis": false
+    },
+    "src/iot_controller/scripts/bleak_fallback.py": {
+      "filePath": "src/iot_controller/scripts/bleak_fallback.py",
+      "contentHash": "fb8fda60d0c1faa46fd9e6f0ba6536f23ac5f9a0e49b034f6c7223a33c14b9de",
+      "functions": [
+        {
+          "name": "normalize_uuid",
+          "params": [
+            "value"
+          ],
+          "returnType": "Optional[str]",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "characteristic_is_writable",
+          "params": [
+            "properties"
+          ],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "characteristic_is_notifiable",
+          "params": [
+            "properties"
+          ],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "select_write_characteristic",
+          "params": [
+            "services",
+            "requested_service_uuid",
+            "requested_char_uuid"
+          ],
+          "returnType": "CharacteristicSelection",
+          "exported": true,
+          "lineCount": 42
+        },
+        {
+          "name": "select_notify_characteristic",
+          "params": [
+            "services",
+            "requested_notify_uuid"
+          ],
+          "returnType": "Optional[CharacteristicSelection]",
+          "exported": true,
+          "lineCount": 29
+        },
+        {
+          "name": "execute_request",
+          "params": [
+            "payload"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 59
+        },
+        {
+          "name": "async_main",
+          "params": [],
+          "returnType": "int",
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "main",
+          "params": [],
+          "returnType": "int",
+          "exported": true,
+          "lineCount": 2
+        }
+      ],
+      "classes": [
+        {
+          "name": "CharacteristicSelection",
+          "methods": [],
+          "properties": [
+            "service_uuid",
+            "characteristic_uuid",
+            "properties"
+          ],
+          "exported": true,
+          "lineCount": 4
+        }
+      ],
+      "imports": [
+        {
+          "source": "argparse",
+          "specifiers": [
+            "argparse"
+          ]
+        },
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Optional"
+          ]
+        },
+        {
+          "source": "bleak",
+          "specifiers": [
+            "BleakClient"
+          ]
+        }
+      ],
+      "exports": [
+        "CharacteristicSelection",
+        "normalize_uuid",
+        "characteristic_is_writable",
+        "characteristic_is_notifiable",
+        "select_write_characteristic",
+        "select_notify_characteristic",
+        "execute_request",
+        "async_main",
+        "main"
+      ],
+      "totalLines": 205,
+      "hasStructuralAnalysis": true
+    },
+    "src/iot_controller/src/main.rs": {
+      "filePath": "src/iot_controller/src/main.rs",
+      "contentHash": "35febf31a354f963baaf9a22386faa8a3585709e1bcafee9a21fd0b3388518ea",
+      "functions": [
+        {
+          "name": "init_servo_manager",
+          "params": [
+            "device",
+            "baud_rate"
+          ],
+          "returnType": "Option<Arc<ServoSerialManager>>",
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "publish_tts",
+          "params": [
+            "publisher",
+            "text"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "main",
+          "params": [],
+          "returnType": "Result<(), Box<dyn std::error::Error>>",
+          "exported": false,
+          "lineCount": 249
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "futures",
+          "specifiers": [
+            "StreamExt"
+          ]
+        },
+        {
+          "source": "modules::bluetooth",
+          "specifiers": [
+            "BluetoothManager"
+          ]
+        },
+        {
+          "source": "modules::cellular",
+          "specifiers": [
+            "CellularManager"
+          ]
+        },
+        {
+          "source": "modules::servo_serial",
+          "specifiers": [
+            "ServoSerialManager"
+          ]
+        },
+        {
+          "source": "r2r",
+          "specifiers": [
+            "r2r"
+          ]
+        },
+        {
+          "source": "r2r::robot_interfaces::msg",
+          "specifiers": [
+            "BodyCommand",
+            "NetworkStatus"
+          ]
+        },
+        {
+          "source": "r2r::robot_interfaces::srv",
+          "specifiers": [
+            "ConnectBluetooth",
+            "DisconnectBluetooth",
+            "ManualAngleControl"
+          ]
+        },
+        {
+          "source": "r2r::std_msgs::msg::String as StringMsg",
+          "specifiers": [
+            "r2r::std_msgs::msg::String as StringMsg"
+          ]
+        },
+        {
+          "source": "std::sync",
+          "specifiers": [
+            "Arc"
+          ]
+        },
+        {
+          "source": "std::time",
+          "specifiers": [
+            "Duration"
+          ]
+        },
+        {
+          "source": "tokio::sync",
+          "specifiers": [
+            "Mutex"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 295,
+      "hasStructuralAnalysis": true
+    },
+    "src/iot_controller/src/modules/bluetooth.rs": {
+      "filePath": "src/iot_controller/src/modules/bluetooth.rs",
+      "contentHash": "ca37214c21d01559e4f516a930997f1089a0addd135d1863183e2c52f59c4a6d",
+      "functions": [
+        {
+          "name": "new",
+          "params": [
+            "service_uuid",
+            "characteristic_uuid",
+            "is_writable"
+          ],
+          "returnType": "Self",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "as_str",
+          "params": [],
+          "returnType": "&'static str",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "label",
+          "params": [],
+          "returnType": "&'static str",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "fmt",
+          "params": [
+            "f"
+          ],
+          "returnType": "fmt::Result",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "invalid_direction",
+          "params": [
+            "direction"
+          ],
+          "returnType": "Self",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "invalid_delta_angle",
+          "params": [
+            "delta_angle"
+          ],
+          "returnType": "Self",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "target_angle_out_of_range",
+          "params": [
+            "target_angle"
+          ],
+          "returnType": "Self",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "from",
+          "params": [
+            "value"
+          ],
+          "returnType": "Self",
+          "exported": false,
+          "lineCount": 25
+        },
+        {
+          "name": "new",
+          "params": [],
+          "returnType": "Self",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "connect_and_execute",
+          "params": [
+            "mac_str",
+            "service_uuid_str",
+            "char_uuid_str",
+            "command_hex"
+          ],
+          "returnType": "Result<BleExecutionResult, Box<dyn Error>>",
+          "exported": true,
+          "lineCount": 186
+        },
+        {
+          "name": "disconnect_current",
+          "params": [],
+          "returnType": "Result<String, Box<dyn Error>>",
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "execute_manual_angle",
+          "params": [
+            "direction",
+            "raw_delta_angle"
+          ],
+          "returnType": "Result<ManualAngleExecutionResult, ManualAngleFailure>",
+          "exported": true,
+          "lineCount": 134
+        },
+        {
+          "name": "execute_with_bleak_fallback",
+          "params": [
+            "mac_str",
+            "target_service_uuid",
+            "target_char_uuid",
+            "command_hex",
+            "resolved_tcu_address"
+          ],
+          "returnType": "Result<BleExecutionResult, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 72
+        },
+        {
+          "name": "execute_manual_angle_with_bleak",
+          "params": [
+            "session",
+            "direction",
+            "delta_angle"
+          ],
+          "returnType": "Result<ManualAngleExecutionResult, ManualAngleFailure>",
+          "exported": false,
+          "lineCount": 98
+        },
+        {
+          "name": "resolve_current_tcu_address_for_bleak",
+          "params": [
+            "session"
+          ],
+          "returnType": "Result<u8, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "query_current_state_with_bleak",
+          "params": [
+            "session",
+            "tcu_address"
+          ],
+          "returnType": "Result<ParsedResponse, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 27
+        },
+        {
+          "name": "send_command_with_bleak",
+          "params": [
+            "session",
+            "command_hex"
+          ],
+          "returnType": "Result<(), Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 22
+        },
+        {
+          "name": "verify_manual_angle_effect_with_bleak",
+          "params": [
+            "session",
+            "tcu_address",
+            "initial_actual_angle",
+            "direction",
+            "target_angle"
+          ],
+          "returnType": "Result<ManualAngleVerification, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 35
+        },
+        {
+          "name": "run_bleak_helper",
+          "params": [
+            "request"
+          ],
+          "returnType": "Result<BleakHelperResponse, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 35
+        },
+        {
+          "name": "connect_with_retry",
+          "params": [
+            "central",
+            "peripheral",
+            "max_attempts"
+          ],
+          "returnType": "Result<(), Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 44
+        },
+        {
+          "name": "resolve_tcu_from_advertisement",
+          "params": [
+            "peripheral"
+          ],
+          "returnType": "Result<u8, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "resolve_current_tcu_address",
+          "params": [
+            "peripheral"
+          ],
+          "returnType": "Result<u8, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "query_current_state",
+          "params": [
+            "peripheral",
+            "characteristic",
+            "tcu_address"
+          ],
+          "returnType": "Result<ParsedResponse, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 54
+        },
+        {
+          "name": "verify_manual_angle_effect",
+          "params": [
+            "peripheral",
+            "characteristic",
+            "tcu_address",
+            "initial_actual_angle",
+            "direction",
+            "target_angle"
+          ],
+          "returnType": "Result<ManualAngleVerification, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 36
+        },
+        {
+          "name": "send_hex_command",
+          "params": [
+            "device",
+            "characteristic",
+            "hex_cmd"
+          ],
+          "returnType": "Result<(), Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 22
+        },
+        {
+          "name": "scan_target_peripheral",
+          "params": [
+            "central",
+            "normalized_target"
+          ],
+          "returnType": "Result<Option<Peripheral>, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 45
+        },
+        {
+          "name": "hex_to_bytes",
+          "params": [
+            "hex"
+          ],
+          "returnType": "Result<Vec<u8>, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "is_local_connection_abort",
+          "params": [
+            "error"
+          ],
+          "returnType": "bool",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "connect_retry_delay_ms",
+          "params": [
+            "error"
+          ],
+          "returnType": "u64",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "should_use_bleak_fallback",
+          "params": [
+            "error"
+          ],
+          "returnType": "bool",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "bleak_fallback_helper_path",
+          "params": [],
+          "returnType": "PathBuf",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "select_preferred_write_candidate",
+          "params": [
+            "candidates"
+          ],
+          "returnType": "Option<BleCharacteristicCandidate>",
+          "exported": false,
+          "lineCount": 34
+        },
+        {
+          "name": "select_write_characteristic",
+          "params": [
+            "chars",
+            "target_service_uuid",
+            "target_char_uuid"
+          ],
+          "returnType": "Option<Characteristic>",
+          "exported": false,
+          "lineCount": 37
+        },
+        {
+          "name": "crc16_modbus",
+          "params": [
+            "data"
+          ],
+          "returnType": "u16",
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "build_query_command",
+          "params": [
+            "tcu_address"
+          ],
+          "returnType": "String",
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "parse_manual_angle_direction",
+          "params": [
+            "direction"
+          ],
+          "returnType": "Result<ManualAngleDirection, ManualAngleFailure>",
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "normalize_manual_delta_angle",
+          "params": [
+            "raw_delta_angle"
+          ],
+          "returnType": "Result<i32, ManualAngleValidationError>",
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "compute_manual_target_angle",
+          "params": [
+            "actual_angle",
+            "current_target_angle",
+            "direction",
+            "delta_angle"
+          ],
+          "returnType": "Result<i32, ManualAngleValidationError>",
+          "exported": false,
+          "lineCount": 32
+        },
+        {
+          "name": "build_manual_angle_command",
+          "params": [
+            "tcu_address",
+            "target_angle"
+          ],
+          "returnType": "Result<String, ManualAngleValidationError>",
+          "exported": false,
+          "lineCount": 26
+        },
+        {
+          "name": "did_manual_angle_take_effect",
+          "params": [
+            "initial_actual_angle",
+            "verified_actual_angle",
+            "direction",
+            "target_angle"
+          ],
+          "returnType": "bool",
+          "exported": false,
+          "lineCount": 22
+        },
+        {
+          "name": "verify_protocol_checksum",
+          "params": [
+            "protocol"
+          ],
+          "returnType": "bool",
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "key_from_rand",
+          "params": [
+            "rand0",
+            "rand1"
+          ],
+          "returnType": "[u8; 7]",
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "parse_tcu_from_protocol",
+          "params": [
+            "protocol"
+          ],
+          "returnType": "Result<u8, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 28
+        },
+        {
+          "name": "extract_protocol_from_manufacturer_data",
+          "params": [
+            "manufacturer_data"
+          ],
+          "returnType": "Option<Vec<u8>>",
+          "exported": false,
+          "lineCount": 24
+        },
+        {
+          "name": "load_persisted_device_info",
+          "params": [],
+          "returnType": "Result<PersistedDeviceInfo, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "normalize_mac",
+          "params": [
+            "value"
+          ],
+          "returnType": "String",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "persist_device_info",
+          "params": [
+            "mac",
+            "tcu"
+          ],
+          "returnType": "Result<(), Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "persist_device_info_to_path",
+          "params": [
+            "path",
+            "mac",
+            "tcu"
+          ],
+          "returnType": "Result<(), Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "verify_response_crc",
+          "params": [
+            "payload"
+          ],
+          "returnType": "bool",
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "parse_i16_be",
+          "params": [
+            "bytes"
+          ],
+          "returnType": "i16",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "parse_u16_be",
+          "params": [
+            "bytes"
+          ],
+          "returnType": "u16",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "parse_response_payload",
+          "params": [
+            "payload"
+          ],
+          "returnType": "Result<ParsedResponse, Box<dyn Error>>",
+          "exported": false,
+          "lineCount": 28
+        },
+        {
+          "name": "fault_code_to_text",
+          "params": [
+            "code"
+          ],
+          "returnType": "String",
+          "exported": false,
+          "lineCount": 45
+        },
+        {
+          "name": "build_tts",
+          "params": [
+            "parsed"
+          ],
+          "returnType": "String",
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "normalize_uuid_input",
+          "params": [
+            "value"
+          ],
+          "returnType": "Option<&str>",
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "normalize_command_input",
+          "params": [
+            "value"
+          ],
+          "returnType": "&str",
+          "exported": false,
+          "lineCount": 12
+        }
+      ],
+      "classes": [
+        {
+          "name": "BleExecutionResult",
+          "methods": [],
+          "properties": [
+            "message",
+            "tts",
+            "actual_angle",
+            "target_angle"
+          ],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "ManualAngleExecutionResult",
+          "methods": [],
+          "properties": [
+            "message",
+            "error_code",
+            "actual_angle_used",
+            "verified_actual_angle",
+            "verified_changed",
+            "target_angle",
+            "delta_angle_used",
+            "tts"
+          ],
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "BleCharacteristicCandidate",
+          "methods": [
+            "new"
+          ],
+          "properties": [
+            "service_uuid",
+            "characteristic_uuid",
+            "is_writable"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "BleakSession",
+          "methods": [],
+          "properties": [
+            "mac",
+            "service_uuid",
+            "write_char_uuid",
+            "notify_char_uuid",
+            "tcu_address"
+          ],
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "BleakHelperRequest",
+          "methods": [],
+          "properties": [
+            "mac",
+            "service_uuid",
+            "write_char_uuid",
+            "notify_char_uuid",
+            "command_hex",
+            "expect_notification",
+            "notification_timeout_ms"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "BleakHelperResponse",
+          "methods": [],
+          "properties": [
+            "success",
+            "message",
+            "service_uuid",
+            "write_char_uuid",
+            "notify_char_uuid",
+            "notification_hex"
+          ],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "ManualAngleFailure",
+          "methods": [
+            "from"
+          ],
+          "properties": [
+            "message",
+            "error_code",
+            "tts"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "ManualAngleDirection",
+          "methods": [
+            "as_str",
+            "label"
+          ],
+          "properties": [
+            "West",
+            "East"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "ManualAngleValidationErrorKind",
+          "methods": [],
+          "properties": [
+            "InvalidDirection",
+            "InvalidDeltaAngle",
+            "TargetAngleOutOfRange"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "ManualAngleValidationError",
+          "methods": [
+            "fmt",
+            "invalid_direction",
+            "invalid_delta_angle",
+            "target_angle_out_of_range"
+          ],
+          "properties": [
+            "kind",
+            "message"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "BluetoothManager",
+          "methods": [
+            "new",
+            "connect_and_execute",
+            "disconnect_current",
+            "execute_manual_angle",
+            "execute_with_bleak_fallback",
+            "execute_manual_angle_with_bleak",
+            "resolve_current_tcu_address_for_bleak",
+            "query_current_state_with_bleak",
+            "send_command_with_bleak",
+            "verify_manual_angle_effect_with_bleak",
+            "run_bleak_helper",
+            "connect_with_retry",
+            "resolve_tcu_from_advertisement",
+            "resolve_current_tcu_address",
+            "query_current_state",
+            "verify_manual_angle_effect",
+            "send_hex_command",
+            "scan_target_peripheral",
+            "hex_to_bytes"
+          ],
+          "properties": [
+            "target_device",
+            "write_char",
+            "bleak_session"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "ManualAngleVerification",
+          "methods": [],
+          "properties": [
+            "actual_angle",
+            "changed"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "PersistedDeviceInfo",
+          "methods": [],
+          "properties": [
+            "mac",
+            "tcu"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "ParsedResponse",
+          "methods": [],
+          "properties": [
+            "tcu_address",
+            "work_mode",
+            "fault_code",
+            "target_angle",
+            "actual_angle",
+            "longitude",
+            "latitude",
+            "timezone"
+          ],
+          "exported": false,
+          "lineCount": 10
+        }
+      ],
+      "imports": [
+        {
+          "source": "btleplug::api",
+          "specifiers": [
+            "Central",
+            "CharPropFlags",
+            "Characteristic",
+            "ScanFilter",
+            "WriteType"
+          ]
+        },
+        {
+          "source": "btleplug::platform",
+          "specifiers": [
+            "Adapter",
+            "Manager",
+            "Peripheral"
+          ]
+        },
+        {
+          "source": "futures",
+          "specifiers": [
+            "StreamExt"
+          ]
+        },
+        {
+          "source": "serde",
+          "specifiers": [
+            "Deserialize",
+            "Serialize"
+          ]
+        },
+        {
+          "source": "std::error",
+          "specifiers": [
+            "Error"
+          ]
+        },
+        {
+          "source": "std",
+          "specifiers": [
+            "fmt"
+          ]
+        },
+        {
+          "source": "std::path",
+          "specifiers": [
+            "Path",
+            "PathBuf"
+          ]
+        },
+        {
+          "source": "std::time",
+          "specifiers": [
+            "Duration"
+          ]
+        },
+        {
+          "source": "tokio",
+          "specifiers": [
+            "process::Command",
+            "time"
+          ]
+        },
+        {
+          "source": "uuid",
+          "specifiers": [
+            "Uuid"
+          ]
+        }
+      ],
+      "exports": [
+        "BleExecutionResult",
+        "ManualAngleExecutionResult",
+        "ManualAngleFailure",
+        "BluetoothManager",
+        "new",
+        "connect_and_execute",
+        "disconnect_current",
+        "execute_manual_angle"
+      ],
+      "totalLines": 1911,
+      "hasStructuralAnalysis": true
+    },
+    "src/iot_controller/src/modules/cellular.rs": {
+      "filePath": "src/iot_controller/src/modules/cellular.rs",
+      "contentHash": "71546a8aef9ef978f068cd72221b810bb5e8b475164d3723f9ce6728d5e610ea",
+      "functions": [
+        {
+          "name": "new",
+          "params": [],
+          "returnType": "Self",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "run",
+          "params": [
+            "publisher"
+          ],
+          "exported": true,
+          "lineCount": 126
+        }
+      ],
+      "classes": [
+        {
+          "name": "CellularManager",
+          "methods": [
+            "new",
+            "run"
+          ],
+          "properties": [
+            "port_name",
+            "baud_rate"
+          ],
+          "exported": true,
+          "lineCount": 4
+        }
+      ],
+      "imports": [
+        {
+          "source": "r2r",
+          "specifiers": [
+            "r2r"
+          ]
+        },
+        {
+          "source": "r2r::robot_interfaces::msg",
+          "specifiers": [
+            "NetworkStatus"
+          ]
+        },
+        {
+          "source": "regex",
+          "specifiers": [
+            "Regex"
+          ]
+        },
+        {
+          "source": "tokio::io",
+          "specifiers": [
+            "AsyncReadExt",
+            "AsyncWriteExt"
+          ]
+        },
+        {
+          "source": "tokio::time",
+          "specifiers": [
+            "sleep",
+            "Duration"
+          ]
+        },
+        {
+          "source": "tokio_serial",
+          "specifiers": [
+            "SerialPortBuilderExt"
+          ]
+        }
+      ],
+      "exports": [
+        "CellularManager",
+        "new",
+        "run"
+      ],
+      "totalLines": 153,
+      "hasStructuralAnalysis": true
+    },
+    "src/iot_controller/src/modules/mod.rs": {
+      "filePath": "src/iot_controller/src/modules/mod.rs",
+      "contentHash": "06994aefbbccd2848370739c1f6b0d393c86472e35311ca7809b71eae3af941c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 4,
+      "hasStructuralAnalysis": true
+    },
+    "src/iot_controller/src/modules/servo_serial.rs": {
+      "filePath": "src/iot_controller/src/modules/servo_serial.rs",
+      "contentHash": "19935a267f6e7adcc47ea422d680afc358a1ef0633eeead12de3090cb24f646d",
+      "functions": [
+        {
+          "name": "new",
+          "params": [
+            "device",
+            "baud_rate"
+          ],
+          "returnType": "Result<Self, Box<dyn std::error::Error>>",
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "send_raw",
+          "params": [
+            "cmd"
+          ],
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "fmt_cmd",
+          "params": [
+            "id",
+            "pwm",
+            "time"
+          ],
+          "returnType": "String",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "reset",
+          "params": [],
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "action_wave",
+          "params": [],
+          "exported": true,
+          "lineCount": 30
+        },
+        {
+          "name": "set_gimbal",
+          "params": [
+            "angle"
+          ],
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "classes": [
+        {
+          "name": "ServoSerialManager",
+          "methods": [
+            "new",
+            "send_raw",
+            "fmt_cmd",
+            "reset",
+            "action_wave",
+            "set_gimbal"
+          ],
+          "properties": [
+            "port"
+          ],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "imports": [
+        {
+          "source": "std::sync",
+          "specifiers": [
+            "Arc"
+          ]
+        },
+        {
+          "source": "std::time",
+          "specifiers": [
+            "Duration"
+          ]
+        },
+        {
+          "source": "tokio::io",
+          "specifiers": [
+            "AsyncWriteExt"
+          ]
+        },
+        {
+          "source": "tokio::sync",
+          "specifiers": [
+            "Mutex"
+          ]
+        },
+        {
+          "source": "tokio_serial",
+          "specifiers": [
+            "SerialPortBuilderExt",
+            "SerialStream"
+          ]
+        }
+      ],
+      "exports": [
+        "ServoSerialManager",
+        "new",
+        "reset",
+        "action_wave",
+        "set_gimbal"
+      ],
+      "totalLines": 97,
+      "hasStructuralAnalysis": true
+    },
+    "src/llm_engine/llm_engine/__init__.py": {
+      "filePath": "src/llm_engine/llm_engine/__init__.py",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": true
+    },
+    "src/llm_engine/llm_engine/llm_node.py": {
+      "filePath": "src/llm_engine/llm_engine/llm_node.py",
+      "contentHash": "09d6a1473482958e354d693a111f599d5f0b648d5ccbd20ae9d2c8bb969441bb",
+      "functions": [
+        {
+          "name": "main",
+          "params": [
+            "args"
+          ],
+          "exported": true,
+          "lineCount": 10
+        }
+      ],
+      "classes": [
+        {
+          "name": "LLMEngine",
+          "methods": [
+            "__init__",
+            "handle_llm_request"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 62
+        }
+      ],
+      "imports": [
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "rclpy",
+          "specifiers": [
+            "rclpy"
+          ]
+        },
+        {
+          "source": "rclpy.node",
+          "specifiers": [
+            "Node"
+          ]
+        },
+        {
+          "source": "openai",
+          "specifiers": [
+            "OpenAI"
+          ]
+        },
+        {
+          "source": "robot_interfaces.srv",
+          "specifiers": [
+            "AskLLM"
+          ]
+        }
+      ],
+      "exports": [
+        "LLMEngine",
+        "main"
+      ],
+      "totalLines": 128,
+      "hasStructuralAnalysis": true
+    },
+    "src/llm_engine/package.xml": {
+      "filePath": "src/llm_engine/package.xml",
+      "contentHash": "426526bfd65a7794bbfb0e65fbd735205a21fa8d43c87632ec0623d6f1bfaca4",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 17,
+      "hasStructuralAnalysis": false
+    },
+    "src/llm_engine/resource/llm_engine": {
+      "filePath": "src/llm_engine/resource/llm_engine",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": false
+    },
+    "src/llm_engine/setup.cfg": {
+      "filePath": "src/llm_engine/setup.cfg",
+      "contentHash": "9c279baf8129c29fc45110fd1384d27493e4597f854a40821d25615949097ec9",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 5,
+      "hasStructuralAnalysis": false
+    },
+    "src/llm_engine/setup.py": {
+      "filePath": "src/llm_engine/setup.py",
+      "contentHash": "311204ea87b6b1859f404a255898d5669f9ba61fa6227c6455c00b0fdf262e57",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "setuptools",
+          "specifiers": [
+            "find_packages",
+            "setup"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 32,
+      "hasStructuralAnalysis": true
+    },
+    "src/llm_engine/test/test_copyright.py": {
+      "filePath": "src/llm_engine/test/test_copyright.py",
+      "contentHash": "ea71bbbc6247b5c14d176ed09f39ee274d563cc9b2ec355828ea451ceff31757",
+      "functions": [
+        {
+          "name": "test_copyright",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "ament_copyright.main",
+          "specifiers": [
+            "main"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        }
+      ],
+      "exports": [
+        "test_copyright"
+      ],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "src/llm_engine/test/test_flake8.py": {
+      "filePath": "src/llm_engine/test/test_flake8.py",
+      "contentHash": "37a813a0507f0ce51a2d0b57312d2cc078a0307a3ca85580ea801b0d2f9755d2",
+      "functions": [
+        {
+          "name": "test_flake8",
+          "params": [],
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "ament_flake8.main",
+          "specifiers": [
+            "main_with_errors"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        }
+      ],
+      "exports": [
+        "test_flake8"
+      ],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "src/llm_engine/test/test_pep257.py": {
+      "filePath": "src/llm_engine/test/test_pep257.py",
+      "contentHash": "e8b88d49ee296987b1b40069f81019b5fa09b1aa1bfee9a1faae45bb5cf53eda",
+      "functions": [
+        {
+          "name": "test_pep257",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "ament_pep257.main",
+          "specifiers": [
+            "main"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        }
+      ],
+      "exports": [
+        "test_pep257"
+      ],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    "src/neuro_bot_bringup/launch/all_systems.launch.py": {
+      "filePath": "src/neuro_bot_bringup/launch/all_systems.launch.py",
+      "contentHash": "c6ccf7589a3700fb7f5e1f977c707b93d1e8ca7874767130dade588de301e985",
+      "functions": [
+        {
+          "name": "generate_launch_description",
+          "params": [],
+          "exported": true,
+          "lineCount": 108
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "launch",
+          "specifiers": [
+            "LaunchDescription"
+          ]
+        },
+        {
+          "source": "launch.actions",
+          "specifiers": [
+            "DeclareLaunchArgument",
+            "TimerAction"
+          ]
+        },
+        {
+          "source": "launch.substitutions",
+          "specifiers": [
+            "LaunchConfiguration"
+          ]
+        },
+        {
+          "source": "launch_ros.actions",
+          "specifiers": [
+            "Node"
+          ]
+        },
+        {
+          "source": "launch_ros.parameter_descriptions",
+          "specifiers": [
+            "ParameterValue"
+          ]
+        }
+      ],
+      "exports": [
+        "generate_launch_description"
+      ],
+      "totalLines": 116,
+      "hasStructuralAnalysis": true
+    },
+    "src/neuro_bot_bringup/neuro_bot_bringup/__init__.py": {
+      "filePath": "src/neuro_bot_bringup/neuro_bot_bringup/__init__.py",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": true
+    },
+    "src/neuro_bot_bringup/package.xml": {
+      "filePath": "src/neuro_bot_bringup/package.xml",
+      "contentHash": "6379c2ef6a7594a60032da4b78f6a399dcb5fc6d2e3b4fbe8ee864d9fd172ead",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 19,
+      "hasStructuralAnalysis": false
+    },
+    "src/neuro_bot_bringup/resource/neuro_bot_bringup": {
+      "filePath": "src/neuro_bot_bringup/resource/neuro_bot_bringup",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": false
+    },
+    "src/neuro_bot_bringup/setup.cfg": {
+      "filePath": "src/neuro_bot_bringup/setup.cfg",
+      "contentHash": "1ba9035f1c1e710403d845dfab226992dea697c8999aabd4bbceff223135fce7",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 5,
+      "hasStructuralAnalysis": false
+    },
+    "src/neuro_bot_bringup/setup.py": {
+      "filePath": "src/neuro_bot_bringup/setup.py",
+      "contentHash": "36815bcf4b8bb79741312f8fb9ffd25bf7d2165a1e56583c0fa58f5b91c73032",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "glob",
+          "specifiers": [
+            "glob"
+          ]
+        },
+        {
+          "source": "setuptools",
+          "specifiers": [
+            "setup"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 35,
+      "hasStructuralAnalysis": true
+    },
+    "src/neuro_bot_bringup/test/test_copyright.py": {
+      "filePath": "src/neuro_bot_bringup/test/test_copyright.py",
+      "contentHash": "ea71bbbc6247b5c14d176ed09f39ee274d563cc9b2ec355828ea451ceff31757",
+      "functions": [
+        {
+          "name": "test_copyright",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "ament_copyright.main",
+          "specifiers": [
+            "main"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        }
+      ],
+      "exports": [
+        "test_copyright"
+      ],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "src/neuro_bot_bringup/test/test_flake8.py": {
+      "filePath": "src/neuro_bot_bringup/test/test_flake8.py",
+      "contentHash": "37a813a0507f0ce51a2d0b57312d2cc078a0307a3ca85580ea801b0d2f9755d2",
+      "functions": [
+        {
+          "name": "test_flake8",
+          "params": [],
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "ament_flake8.main",
+          "specifiers": [
+            "main_with_errors"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        }
+      ],
+      "exports": [
+        "test_flake8"
+      ],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "src/neuro_bot_bringup/test/test_pep257.py": {
+      "filePath": "src/neuro_bot_bringup/test/test_pep257.py",
+      "contentHash": "e8b88d49ee296987b1b40069f81019b5fa09b1aa1bfee9a1faae45bb5cf53eda",
+      "functions": [
+        {
+          "name": "test_pep257",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "ament_pep257.main",
+          "specifiers": [
+            "main"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        }
+      ],
+      "exports": [
+        "test_pep257"
+      ],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    "src/robot_interfaces/CMakeLists.txt": {
+      "filePath": "src/robot_interfaces/CMakeLists.txt",
+      "contentHash": "aba6cf914e14bdaf5454c57334dc9d7cc4d90d73177335d94570ad6fc63bd2e8",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 47,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/msg/AudioSpeech.msg": {
+      "filePath": "src/robot_interfaces/msg/AudioSpeech.msg",
+      "contentHash": "91eabf58a42e90b2af3b5829e79ef457119b589f28723b6d3b71a12b514b75ac",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 3,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/msg/BluetoothCommand.msg": {
+      "filePath": "src/robot_interfaces/msg/BluetoothCommand.msg",
+      "contentHash": "05c6521fdc7c2b5af0cff7e7ce1515ded0d8e9e0723a518a3f0388d2a24eb9cf",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 2,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/msg/BodyCommand.msg": {
+      "filePath": "src/robot_interfaces/msg/BodyCommand.msg",
+      "contentHash": "b124c502d9bd9dbec7b635886974650e342cb4bad12f6589fb506a0cf3d66ced",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 6,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/msg/FaceEmotion.msg": {
+      "filePath": "src/robot_interfaces/msg/FaceEmotion.msg",
+      "contentHash": "4b2ab32f98a275ac279aaa40e1c16f2880ab08baac8f107db61bf5e1cfeb2735",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/msg/InspectionStatus.msg": {
+      "filePath": "src/robot_interfaces/msg/InspectionStatus.msg",
+      "contentHash": "a7c48857b516ae22b07b0fce8ce9a7eecd40754c2022ad211e8006c50643c2df",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 9,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/msg/NetworkStatus.msg": {
+      "filePath": "src/robot_interfaces/msg/NetworkStatus.msg",
+      "contentHash": "9841a07c0901f8902c08fbb8498e60a83c350bd76389b0bd100ab4303d674adf",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 12,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/msg/RobotState.msg": {
+      "filePath": "src/robot_interfaces/msg/RobotState.msg",
+      "contentHash": "ea3720dbcdad8fc1f11b0aa050031f410de36d7dab25cea2d69f1ff024724912",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 6,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/msg/VisionResult.msg": {
+      "filePath": "src/robot_interfaces/msg/VisionResult.msg",
+      "contentHash": "abcc468112d1672cfed0904a7173ccbfb6b9d8224b1bfc81fdfae65dc332a247",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 10,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/package.xml": {
+      "filePath": "src/robot_interfaces/package.xml",
+      "contentHash": "216e81ff5ba0d4302791c0433dd73760cdaa276a800b8a88f90455077bd7d98c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 24,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/srv/AskLLM.srv": {
+      "filePath": "src/robot_interfaces/srv/AskLLM.srv",
+      "contentHash": "43418d6a9986ff0d714521eb4b037f44dff847e09a826ac4d57dae0525d80c65",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 4,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/srv/CaptureSnapshot.srv": {
+      "filePath": "src/robot_interfaces/srv/CaptureSnapshot.srv",
+      "contentHash": "d6ddaac403670838529b4b566782043e2b50b489bdb7bcd4ac2712e93d5f7348",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 13,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/srv/CompleteInspection.srv": {
+      "filePath": "src/robot_interfaces/srv/CompleteInspection.srv",
+      "contentHash": "0ca827ad1d59aac53d0b8c2fd3d2d57c758baea5a9fdec108c24b97942c46be2",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 8,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/srv/ConnectBluetooth.srv": {
+      "filePath": "src/robot_interfaces/srv/ConnectBluetooth.srv",
+      "contentHash": "554c73ec064423119ddc5b043191d7a64fd596044cee557d291dd33eb36f2b3a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 23,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/srv/DisconnectBluetooth.srv": {
+      "filePath": "src/robot_interfaces/srv/DisconnectBluetooth.srv",
+      "contentHash": "66003f1230700f8a1da3243323ff08a1c60b520d1518947728471eb7f5bde440",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 4,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/srv/ManualAngleControl.srv": {
+      "filePath": "src/robot_interfaces/srv/ManualAngleControl.srv",
+      "contentHash": "1900756d7da9c54d72fe8e63421fdd82f36d352c06c6bc54c405ef5a74c47f61",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 17,
+      "hasStructuralAnalysis": false
+    },
+    "src/robot_interfaces/srv/StartInspection.srv": {
+      "filePath": "src/robot_interfaces/srv/StartInspection.srv",
+      "contentHash": "0ca827ad1d59aac53d0b8c2fd3d2d57c758baea5a9fdec108c24b97942c46be2",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 8,
+      "hasStructuralAnalysis": false
+    },
+    "src/vision_engine/package.xml": {
+      "filePath": "src/vision_engine/package.xml",
+      "contentHash": "435184e34ee485cf3934858016e86c29103fdeb723f35e16d3dcb6898b659555",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 25,
+      "hasStructuralAnalysis": false
+    },
+    "src/vision_engine/resource/vision_engine": {
+      "filePath": "src/vision_engine/resource/vision_engine",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": false
+    },
+    "src/vision_engine/setup.cfg": {
+      "filePath": "src/vision_engine/setup.cfg",
+      "contentHash": "2975dae14f6f1a3966d328171a2409d554d6343b0c0eea4f7e5a04c588b9f57c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 5,
+      "hasStructuralAnalysis": false
+    },
+    "src/vision_engine/setup.py": {
+      "filePath": "src/vision_engine/setup.py",
+      "contentHash": "ce815db6db156fd8233cb0fc36ddb6648818f16c63cd986ed1ab798e99eb1c61",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "setuptools",
+          "specifiers": [
+            "find_packages",
+            "setup"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 31,
+      "hasStructuralAnalysis": true
+    },
+    "src/vision_engine/test/test_copyright.py": {
+      "filePath": "src/vision_engine/test/test_copyright.py",
+      "contentHash": "ea71bbbc6247b5c14d176ed09f39ee274d563cc9b2ec355828ea451ceff31757",
+      "functions": [
+        {
+          "name": "test_copyright",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "ament_copyright.main",
+          "specifiers": [
+            "main"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        }
+      ],
+      "exports": [
+        "test_copyright"
+      ],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "src/vision_engine/test/test_flake8.py": {
+      "filePath": "src/vision_engine/test/test_flake8.py",
+      "contentHash": "37a813a0507f0ce51a2d0b57312d2cc078a0307a3ca85580ea801b0d2f9755d2",
+      "functions": [
+        {
+          "name": "test_flake8",
+          "params": [],
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "ament_flake8.main",
+          "specifiers": [
+            "main_with_errors"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        }
+      ],
+      "exports": [
+        "test_flake8"
+      ],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "src/vision_engine/test/test_pep257.py": {
+      "filePath": "src/vision_engine/test/test_pep257.py",
+      "contentHash": "e8b88d49ee296987b1b40069f81019b5fa09b1aa1bfee9a1faae45bb5cf53eda",
+      "functions": [
+        {
+          "name": "test_pep257",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "ament_pep257.main",
+          "specifiers": [
+            "main"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        }
+      ],
+      "exports": [
+        "test_pep257"
+      ],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    "src/vision_engine/test/test_qr_config.py": {
+      "filePath": "src/vision_engine/test/test_qr_config.py",
+      "contentHash": "d4131be05beffad8a274a4a23f506540ef44fa832c361f2822596c272558fe2c",
+      "functions": [
+        {
+          "name": "test_resolve_camera_topic_default",
+          "params": [],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "test_resolve_camera_topic_custom",
+          "params": [],
+          "exported": true,
+          "lineCount": 4
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "test_resolve_camera_topic_default",
+        "test_resolve_camera_topic_custom"
+      ],
+      "totalLines": 12,
+      "hasStructuralAnalysis": true
+    },
+    "src/vision_engine/test/test_qr_dedupe.py": {
+      "filePath": "src/vision_engine/test/test_qr_dedupe.py",
+      "contentHash": "7d8ebb50aa24f2289d7f3d4c0731d31fefbe8e379fcbeb48d2159a4e566dda0c",
+      "functions": [
+        {
+          "name": "test_dedupe_suppresses_repeated_content",
+          "params": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "test_dedupe_allows_new_content",
+          "params": [],
+          "exported": true,
+          "lineCount": 8
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "test_dedupe_suppresses_repeated_content",
+        "test_dedupe_allows_new_content"
+      ],
+      "totalLines": 20,
+      "hasStructuralAnalysis": true
+    },
+    "src/vision_engine/test/test_qr_gating.py": {
+      "filePath": "src/vision_engine/test/test_qr_gating.py",
+      "contentHash": "a3d380f311f54e109f785f0a31bf0bb454661987375c5b3b60e6fabbeab1d6c4",
+      "functions": [
+        {
+          "name": "test_gate_allows_publish_when_gating_disabled",
+          "params": [],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "test_gate_blocks_publish_until_session_becomes_active",
+          "params": [],
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "test_gate_clears_after_terminal_stage",
+          "params": [],
+          "exported": true,
+          "lineCount": 8
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vision_engine.inspection_gate",
+          "specifiers": [
+            "InspectionGate"
+          ]
+        }
+      ],
+      "exports": [
+        "test_gate_allows_publish_when_gating_disabled",
+        "test_gate_blocks_publish_until_session_becomes_active",
+        "test_gate_clears_after_terminal_stage"
+      ],
+      "totalLines": 32,
+      "hasStructuralAnalysis": true
+    },
+    "src/vision_engine/test/test_snapshot_utils.py": {
+      "filePath": "src/vision_engine/test/test_snapshot_utils.py",
+      "contentHash": "54e977e81d97f09bc8c9b4e879eadce10def568727921782ac6a3fd95a15c76d",
+      "functions": [
+        {
+          "name": "test_build_snapshot_payload_returns_base64_jpeg_metadata",
+          "params": [],
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "test_build_snapshot_payload_generates_timestamp_when_missing",
+          "params": [],
+          "exported": true,
+          "lineCount": 7
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "datetime",
+          "specifiers": [
+            "datetime"
+          ]
+        },
+        {
+          "source": "numpy",
+          "specifiers": [
+            "np"
+          ]
+        },
+        {
+          "source": "vision_engine.snapshot_utils",
+          "specifiers": [
+            "build_snapshot_payload"
+          ]
+        }
+      ],
+      "exports": [
+        "test_build_snapshot_payload_returns_base64_jpeg_metadata",
+        "test_build_snapshot_payload_generates_timestamp_when_missing"
+      ],
+      "totalLines": 28,
+      "hasStructuralAnalysis": true
+    },
+    "src/vision_engine/vision_engine/__init__.py": {
+      "filePath": "src/vision_engine/vision_engine/__init__.py",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": true
+    },
+    "src/vision_engine/vision_engine/inspection_gate.py": {
+      "filePath": "src/vision_engine/vision_engine/inspection_gate.py",
+      "contentHash": "983ed3634121f92198f61af28c5ae182706b2658fdb67a8f25fc8198ed6869a5",
+      "functions": [],
+      "classes": [
+        {
+          "name": "InspectionGate",
+          "methods": [
+            "__init__",
+            "should_publish",
+            "update"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 18
+        }
+      ],
+      "imports": [],
+      "exports": [
+        "InspectionGate"
+      ],
+      "totalLines": 28,
+      "hasStructuralAnalysis": true
+    },
+    "src/vision_engine/vision_engine/qr_config.py": {
+      "filePath": "src/vision_engine/vision_engine/qr_config.py",
+      "contentHash": "7ee3544972b54286b60686597cdec4d514e7b0455325b448837f62511519303f",
+      "functions": [
+        {
+          "name": "resolve_camera_topic",
+          "params": [
+            "topic"
+          ],
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "resolve_camera_topic"
+      ],
+      "totalLines": 10,
+      "hasStructuralAnalysis": true
+    },
+    "src/vision_engine/vision_engine/qr_dedupe.py": {
+      "filePath": "src/vision_engine/vision_engine/qr_dedupe.py",
+      "contentHash": "931c5c63bc205c309f11a9b6c76376be6b3b333f5e59b175f30589c7b55c0a26",
+      "functions": [],
+      "classes": [
+        {
+          "name": "QrContentDeduper",
+          "methods": [
+            "__init__",
+            "should_publish",
+            "_prune"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 27
+        }
+      ],
+      "imports": [],
+      "exports": [
+        "QrContentDeduper"
+      ],
+      "totalLines": 28,
+      "hasStructuralAnalysis": true
+    },
+    "src/vision_engine/vision_engine/qr_node.py": {
+      "filePath": "src/vision_engine/vision_engine/qr_node.py",
+      "contentHash": "27fdaf57beecabb5c762c3305e0f2d75e46bfa6161ff1b470523a426de255398",
+      "functions": [
+        {
+          "name": "main",
+          "params": [
+            "args"
+          ],
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "classes": [
+        {
+          "name": "QRNode",
+          "methods": [
+            "__init__",
+            "restore_mac",
+            "listener_callback",
+            "handle_capture_snapshot",
+            "handle_inspection_status",
+            "publish_result"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 193
+        }
+      ],
+      "imports": [
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "threading",
+          "specifiers": [
+            "Lock"
+          ]
+        },
+        {
+          "source": "cv2",
+          "specifiers": [
+            "cv2"
+          ]
+        },
+        {
+          "source": "cv_bridge",
+          "specifiers": [
+            "CvBridge"
+          ]
+        },
+        {
+          "source": "rclpy",
+          "specifiers": [
+            "rclpy"
+          ]
+        },
+        {
+          "source": "rclpy.node",
+          "specifiers": [
+            "Node"
+          ]
+        },
+        {
+          "source": "rclpy.qos",
+          "specifiers": [
+            "HistoryPolicy",
+            "QoSProfile",
+            "ReliabilityPolicy"
+          ]
+        },
+        {
+          "source": "robot_interfaces.msg",
+          "specifiers": [
+            "InspectionStatus",
+            "VisionResult"
+          ]
+        },
+        {
+          "source": "robot_interfaces.srv",
+          "specifiers": [
+            "CaptureSnapshot"
+          ]
+        },
+        {
+          "source": "sensor_msgs.msg",
+          "specifiers": [
+            "Image"
+          ]
+        },
+        {
+          "source": "vision_engine.inspection_gate",
+          "specifiers": [
+            "InspectionGate"
+          ]
+        },
+        {
+          "source": "vision_engine.qr_config",
+          "specifiers": [
+            "resolve_camera_topic"
+          ]
+        },
+        {
+          "source": "vision_engine.qr_dedupe",
+          "specifiers": [
+            "QrContentDeduper"
+          ]
+        },
+        {
+          "source": "vision_engine.snapshot_utils",
+          "specifiers": [
+            "build_snapshot_payload"
+          ]
+        }
+      ],
+      "exports": [
+        "QRNode",
+        "main"
+      ],
+      "totalLines": 231,
+      "hasStructuralAnalysis": true
+    },
+    "src/vision_engine/vision_engine/snapshot_utils.py": {
+      "filePath": "src/vision_engine/vision_engine/snapshot_utils.py",
+      "contentHash": "b936cca51f5e8758f560bb6c4022f5630b1b941058ddd0c4d0062d9c371a54d0",
+      "functions": [
+        {
+          "name": "build_snapshot_payload",
+          "params": [
+            "frame",
+            "captured_at",
+            "jpeg_quality"
+          ],
+          "returnType": "dict[str, object]",
+          "exported": true,
+          "lineCount": 27
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "base64",
+          "specifiers": [
+            "base64"
+          ]
+        },
+        {
+          "source": "datetime",
+          "specifiers": [
+            "datetime",
+            "timezone"
+          ]
+        },
+        {
+          "source": "cv2",
+          "specifiers": [
+            "cv2"
+          ]
+        }
+      ],
+      "exports": [
+        "build_snapshot_payload"
+      ],
+      "totalLines": 36,
+      "hasStructuralAnalysis": true
+    },
+    "start.sh": {
+      "filePath": "start.sh",
+      "contentHash": "9fb1a04789478181b82a8b7dd1c39a532be745b5be3f98ea970fb93479344616",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 54,
+      "hasStructuralAnalysis": true
+    },
+    "test_audio.py": {
+      "filePath": "test_audio.py",
+      "contentHash": "6969dc8568ca2231b7f57c80a4bf41d0a9afd376a0d5f884264dad6312f8a746",
+      "functions": [
+        {
+          "name": "main",
+          "params": [
+            "args"
+          ],
+          "exported": true,
+          "lineCount": 11
+        }
+      ],
+      "classes": [
+        {
+          "name": "MockAudioEngine",
+          "methods": [
+            "__init__",
+            "publish_speech"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 17
+        }
+      ],
+      "imports": [
+        {
+          "source": "rclpy",
+          "specifiers": [
+            "rclpy"
+          ]
+        },
+        {
+          "source": "rclpy.node",
+          "specifiers": [
+            "Node"
+          ]
+        },
+        {
+          "source": "robot_interfaces.msg",
+          "specifiers": [
+            "AudioSpeech"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        }
+      ],
+      "exports": [
+        "MockAudioEngine",
+        "main"
+      ],
+      "totalLines": 38,
+      "hasStructuralAnalysis": true
+    },
+    "vision_system.launch.py": {
+      "filePath": "vision_system.launch.py",
+      "contentHash": "0195ff35e0546c422c712275d92fed5f3e5ab34190a31101415fdecbddfc7ced",
+      "functions": [
+        {
+          "name": "generate_launch_description",
+          "params": [],
+          "exported": true,
+          "lineCount": 26
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "launch",
+          "specifiers": [
+            "LaunchDescription"
+          ]
+        },
+        {
+          "source": "launch_ros.actions",
+          "specifiers": [
+            "Node"
+          ]
+        }
+      ],
+      "exports": [
+        "generate_launch_description"
+      ],
+      "totalLines": 29,
+      "hasStructuralAnalysis": true
+    }
+  }
+}
