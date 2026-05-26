@@ -22,6 +22,10 @@ set(msg_files
   "msg/NetworkStatus.msg"
   "msg/BodyCommand.msg"
   "msg/InspectionStatus.msg"
+  # 🟢 新增触觉消息
+  "msg/TactileFrame.msg"
+  "msg/TactileSurface.msg"
+  "msg/TactileEvent.msg"
 )
 
 # 你的服务定义
