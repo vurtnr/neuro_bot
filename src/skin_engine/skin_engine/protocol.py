@@ -132,6 +132,7 @@ class FrameAssembler:
         self._raw_grid = np.zeros((ROWS, COLS), dtype=np.uint16)
         self._display_grid = np.zeros((ROWS, COLS), dtype=np.float32)
         self._row_tmp = np.zeros((ROWS, COLS), dtype=np.uint16)
+        self._col_tmp = np.zeros((ROWS, COLS), dtype=np.uint16)
         self._band = -1
         self._synced = False
 
@@ -158,7 +159,8 @@ class FrameAssembler:
 
         if self.reorder:
             np.take(self._raw_grid, LAYOUT_ROW_SRC, axis=0, out=self._row_tmp)
-            np.take(self._row_tmp, LAYOUT_COL_SRC, axis=1, out=self._display_grid)
+            np.take(self._row_tmp, LAYOUT_COL_SRC, axis=1, out=self._col_tmp)
+            np.copyto(self._display_grid, self._col_tmp, casting="unsafe")
         else:
             np.copyto(self._display_grid, self._raw_grid, casting="unsafe")
         return self._display_grid.copy()
