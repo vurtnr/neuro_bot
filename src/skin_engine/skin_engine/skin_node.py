@@ -40,6 +40,7 @@ class SkinNode(Node):
         self.declare_parameter("baseline_mode", os.getenv("SKIN_BASELINE_MODE", "positive"))
         self.declare_parameter("confirm_frames", int(os.getenv("SKIN_CONFIRM_FRAMES", "3")))
         self.declare_parameter("release_frames", int(os.getenv("SKIN_RELEASE_FRAMES", "4")))
+        self.declare_parameter("cell_tolerance", int(os.getenv("SKIN_CELL_TOLERANCE", "1")))
         self.declare_parameter("reorder", os.getenv("SKIN_NO_REORDER", "0") != "1")
 
         self.publisher = self.create_publisher(SkinPressure, "/skin/pressure", 10)
@@ -54,6 +55,7 @@ class SkinNode(Node):
         self._stabilizer = TouchStabilizer(
             confirm_frames=int(self.get_parameter("confirm_frames").value),
             release_frames=int(self.get_parameter("release_frames").value),
+            cell_tolerance=int(self.get_parameter("cell_tolerance").value),
         )
         self._last_publish = 0.0
         self._running = True

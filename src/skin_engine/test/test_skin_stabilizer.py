@@ -31,6 +31,30 @@ def test_stabilizer_resets_when_peak_cell_changes():
     assert event.event_type == "idle"
 
 
+def test_stabilizer_confirms_adjacent_peak_jitter_as_same_touch():
+    stabilizer = TouchStabilizer(confirm_frames=3, cell_tolerance=1)
+
+    assert stabilizer.apply(_touch(20, 7, 2060.0)).event_type == "idle"
+    assert stabilizer.apply(_touch(20, 6, 1800.0)).event_type == "idle"
+    event = stabilizer.apply(_touch(21, 6, 1700.0))
+
+    assert event.event_type == "pain_warning"
+    assert event.peak_row == 21
+    assert event.peak_col == 6
+
+
+def test_stabilizer_keeps_confirmed_touch_active_when_peak_jitters():
+    stabilizer = TouchStabilizer(confirm_frames=2, release_frames=4, cell_tolerance=1)
+
+    stabilizer.apply(_touch(20, 7, 2060.0))
+    assert stabilizer.apply(_touch(20, 7, 2060.0)).event_type == "pain_warning"
+    event = stabilizer.apply(_touch(21, 6, 1700.0))
+
+    assert event.event_type == "pain_warning"
+    assert event.peak_row == 21
+    assert event.peak_col == 6
+
+
 def test_stabilizer_suppresses_release_bounce_until_idle_is_stable():
     stabilizer = TouchStabilizer(confirm_frames=2, release_frames=4)
 
