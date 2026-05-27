@@ -19,6 +19,7 @@ from skin_engine.protocol import (
     FrameAssembler,
     SerialFrameReader,
 )
+from skin_engine.stabilizer import TouchStabilizer
 
 
 class SkinNode(Node):
@@ -37,6 +38,7 @@ class SkinNode(Node):
         )
         self.declare_parameter("baseline_margin", float(os.getenv("SKIN_BASELINE_MARGIN", "300")))
         self.declare_parameter("baseline_mode", os.getenv("SKIN_BASELINE_MODE", "positive"))
+        self.declare_parameter("confirm_frames", int(os.getenv("SKIN_CONFIRM_FRAMES", "3")))
         self.declare_parameter("reorder", os.getenv("SKIN_NO_REORDER", "0") != "1")
 
         self.publisher = self.create_publisher(SkinPressure, "/skin/pressure", 10)
@@ -47,6 +49,9 @@ class SkinNode(Node):
             noise_percentile=float(self.get_parameter("baseline_percentile").value),
             margin=float(self.get_parameter("baseline_margin").value),
             mode=str(self.get_parameter("baseline_mode").value),
+        )
+        self._stabilizer = TouchStabilizer(
+            confirm_frames=int(self.get_parameter("confirm_frames").value),
         )
         self._last_publish = 0.0
         self._running = True
@@ -107,6 +112,7 @@ class SkinNode(Node):
                     touch_threshold=touch_threshold,
                     pain_threshold=pain_threshold,
                 )
+                event = self._stabilizer.apply(event)
                 self.publisher.publish(self._to_message(event))
 
     def _apply_baseline(self, frame: np.ndarray) -> np.ndarray:
