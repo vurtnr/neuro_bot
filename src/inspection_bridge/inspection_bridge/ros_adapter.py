@@ -272,6 +272,7 @@ class RosInspectionBridge(Node):
             "totalPressure": msg.total_pressure,
             "activeCount": msg.active_count,
             "validTouch": msg.valid_touch,
+            "frameValues": list(msg.frame_values),
             "timestamp": (
                 f"{msg.stamp.sec}.{msg.stamp.nanosec:09d}"
                 if hasattr(msg, "stamp")

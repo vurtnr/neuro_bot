@@ -8,4 +8,5 @@ float32 normalized_pressure
 float32 total_pressure
 int32 active_count
 bool valid_touch
+float32[] frame_values
 builtin_interfaces/Time stamp

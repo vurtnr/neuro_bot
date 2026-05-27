@@ -117,7 +117,7 @@ class SkinNode(Node):
                     pain_threshold=pain_threshold,
                 )
                 event = self._stabilizer.apply(event)
-                self.publisher.publish(self._to_message(event))
+                self.publisher.publish(self._to_message(event, corrected))
 
     def _apply_baseline(self, frame: np.ndarray) -> np.ndarray:
         was_ready = self._baseline.ready
@@ -126,7 +126,7 @@ class SkinNode(Node):
             self.get_logger().info("Electronic skin baseline calibrated")
         return corrected
 
-    def _to_message(self, event) -> SkinPressure:
+    def _to_message(self, event, frame: np.ndarray | None = None) -> SkinPressure:
         msg = SkinPressure()
         msg.event_type = event.event_type
         msg.surface = event.surface
@@ -138,6 +138,8 @@ class SkinNode(Node):
         msg.total_pressure = event.total_pressure
         msg.active_count = event.active_count
         msg.valid_touch = event.valid_touch
+        if frame is not None:
+            msg.frame_values = np.asarray(frame, dtype=np.float32).reshape(-1).tolist()
         msg.stamp = self.get_clock().now().to_msg()
         return msg
 
