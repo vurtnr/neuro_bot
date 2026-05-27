@@ -4,17 +4,27 @@ from skin_engine.detector import SkinPressureEvent
 
 
 class TouchStabilizer:
-    def __init__(self, confirm_frames: int = 3) -> None:
+    def __init__(self, confirm_frames: int = 3, release_frames: int = 4) -> None:
         self.confirm_frames = max(int(confirm_frames), 1)
+        self.release_frames = max(int(release_frames), 1)
         self._last_key: tuple[str, int, int] | None = None
         self._count = 0
+        self._latched = False
+        self._idle_count = 0
 
     def apply(self, event: SkinPressureEvent) -> SkinPressureEvent:
         if not event.valid_touch or event.event_type == "idle":
-            self._last_key = None
-            self._count = 0
+            self._idle_count += 1
+            if self._idle_count >= self.release_frames:
+                self._latched = False
+                self._last_key = None
+                self._count = 0
             return event
 
+        if self._latched and self._idle_count < self.release_frames:
+            return _idle_event()
+
+        self._idle_count = 0
         key = (event.surface, event.peak_row, event.peak_col)
         if key == self._last_key:
             self._count += 1
@@ -24,6 +34,7 @@ class TouchStabilizer:
 
         if self._count < self.confirm_frames:
             return _idle_event()
+        self._latched = True
         return event
 
 
