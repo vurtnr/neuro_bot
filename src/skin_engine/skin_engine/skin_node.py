@@ -9,6 +9,7 @@ import rclpy
 from rclpy.node import Node
 from robot_interfaces.msg import SkinPressure
 
+from skin_engine.baseline import BaselineCorrector
 from skin_engine.detector import classify_pressure_frame
 from skin_engine.protocol import (
     CMD_START,
@@ -30,15 +31,23 @@ class SkinNode(Node):
         self.declare_parameter("pain_threshold", float(os.getenv("SKIN_PAIN_THRESHOLD", "900")))
         self.declare_parameter("publish_hz", float(os.getenv("SKIN_EVENT_HZ", "10")))
         self.declare_parameter("baseline_frames", int(os.getenv("SKIN_BASELINE_FRAMES", "20")))
+        self.declare_parameter(
+            "baseline_percentile",
+            float(os.getenv("SKIN_BASELINE_PERCENTILE", "99")),
+        )
+        self.declare_parameter("baseline_margin", float(os.getenv("SKIN_BASELINE_MARGIN", "300")))
+        self.declare_parameter("baseline_mode", os.getenv("SKIN_BASELINE_MODE", "positive"))
         self.declare_parameter("reorder", os.getenv("SKIN_NO_REORDER", "0") != "1")
 
         self.publisher = self.create_publisher(SkinPressure, "/skin/pressure", 10)
         self._source = self._create_source()
         self._assembler = FrameAssembler(reorder=bool(self.get_parameter("reorder").value))
-        self._baseline_frames = int(self.get_parameter("baseline_frames").value)
-        self._baseline_sum = np.zeros((32, 16), dtype=np.float64)
-        self._baseline_count = 0
-        self._baseline = np.zeros((32, 16), dtype=np.float32)
+        self._baseline = BaselineCorrector(
+            target_frames=int(self.get_parameter("baseline_frames").value),
+            noise_percentile=float(self.get_parameter("baseline_percentile").value),
+            margin=float(self.get_parameter("baseline_margin").value),
+            mode=str(self.get_parameter("baseline_mode").value),
+        )
         self._last_publish = 0.0
         self._running = True
         self._source = None
@@ -101,17 +110,10 @@ class SkinNode(Node):
                 self.publisher.publish(self._to_message(event))
 
     def _apply_baseline(self, frame: np.ndarray) -> np.ndarray:
-        if self._baseline_frames <= 0:
-            return frame
-        if self._baseline_count < self._baseline_frames:
-            self._baseline_sum += frame
-            self._baseline_count += 1
-            if self._baseline_count == self._baseline_frames:
-                self._baseline = (self._baseline_sum / self._baseline_count).astype(np.float32)
-                self.get_logger().info("Electronic skin baseline calibrated")
-            return np.zeros_like(frame, dtype=np.float32)
-        corrected = frame.astype(np.float32) - self._baseline
-        np.clip(corrected, 0.0, None, out=corrected)
+        was_ready = self._baseline.ready
+        corrected = self._baseline.apply(frame)
+        if not was_ready and self._baseline.ready:
+            self.get_logger().info("Electronic skin baseline calibrated")
         return corrected
 
     def _to_message(self, event) -> SkinPressure:
