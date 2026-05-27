@@ -111,12 +111,13 @@ class SkinNode(Node):
                 if now - self._last_publish < publish_interval:
                     continue
                 self._last_publish = now
-                event = classify_pressure_frame(
+                detected_event = classify_pressure_frame(
                     corrected,
                     touch_threshold=touch_threshold,
                     pain_threshold=pain_threshold,
                 )
-                event = self._stabilizer.apply(event)
+                stabilized_event = self._stabilizer.apply(detected_event)
+                event = select_published_event(detected_event, stabilized_event)
                 self.publisher.publish(self._to_message(event, corrected))
 
     def _apply_baseline(self, frame: np.ndarray) -> np.ndarray:
@@ -161,6 +162,12 @@ class SkinNode(Node):
         except Exception:
             pass
         self._source = None
+
+
+def select_published_event(detected_event, stabilized_event):
+    if detected_event.valid_touch and detected_event.event_type != "idle":
+        return detected_event
+    return stabilized_event
 
 
 def main(args=None) -> None:
