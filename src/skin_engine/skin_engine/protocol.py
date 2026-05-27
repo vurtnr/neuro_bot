@@ -15,7 +15,9 @@ ROWS = 32
 COLS = 16
 ADC_BYTES = 8 * 24
 BODY_221 = 3 + ADC_BYTES + 24 + 2
+SHORT_BODY_197 = 3 + ADC_BYTES + 2
 FOOTER_226 = bytes((0x21, 0x22, 0x23, 0x0D, 0x0A))
+LINE_FOOTER = bytes((0x0D, 0x0A))
 DEFAULT_BAUD = 921600
 CMD_START = bytes((0x11, 0xBB, 0x0D, 0x0A))
 CMD_STOP = bytes((0xFF, 0xBB, 0x0D, 0x0A))
@@ -78,16 +80,24 @@ class SerialFrameReader:
                 break
             if idx > 0:
                 del self._buf[:idx]
-            if len(self._buf) < BODY_221:
+            if len(self._buf) < SHORT_BODY_197:
                 break
-            if len(self._buf) >= BODY_221 + len(FOOTER_226):
-                tail = self._buf[BODY_221 : BODY_221 + len(FOOTER_226)]
-                if bytes(tail) == FOOTER_226:
-                    packets.append(bytes(self._buf[: BODY_221 + len(FOOTER_226)]))
-                    del self._buf[: BODY_221 + len(FOOTER_226)]
-                    continue
-            packets.append(bytes(self._buf[:BODY_221]))
-            del self._buf[:BODY_221]
+
+            # Hardware-manual format: header + 192 ADC bytes + CRLF.
+            # Some dashboard captures include 24 extra bytes before CRLF and
+            # some final sub-packets append 21 22 23 0d 0a. Accept all forms by
+            # cutting at the first CRLF after the ADC payload.
+            min_tail_start = 3 + ADC_BYTES
+            tail_idx = self._buf.find(LINE_FOOTER, min_tail_start)
+            if tail_idx < 0:
+                break
+            packet_end = tail_idx + len(LINE_FOOTER)
+            if len(self._buf) >= packet_end + len(FOOTER_226):
+                if bytes(self._buf[packet_end : packet_end + len(FOOTER_226)]) == FOOTER_226:
+                    packet_end += len(FOOTER_226)
+            packets.append(bytes(self._buf[:packet_end]))
+            del self._buf[:packet_end]
+            continue
         return packets
 
 
@@ -138,15 +148,22 @@ class FrameAssembler:
 
     def push_packet(self, packet: bytes) -> Optional[np.ndarray]:
         packet_len = len(packet)
-        if packet_len not in (BODY_221, BODY_221 + len(FOOTER_226)):
+        if packet_len < 3 + ADC_BYTES:
             return None
 
-        is_tail = packet_len == BODY_221 + len(FOOTER_226)
+        is_tail = packet.endswith(FOOTER_226)
         if not self._synced:
             if is_tail:
                 decode_packet_into(packet, self._raw_grid, 3)
                 self._band = 0
                 self._synced = True
+                return None
+            self._synced = True
+            self._band = 0
+
+        if not is_tail and self._band == 0:
+            decode_packet_into(packet, self._raw_grid, self._band)
+            self._band = 1
             return None
 
         if is_tail:
@@ -155,7 +172,8 @@ class FrameAssembler:
         else:
             decode_packet_into(packet, self._raw_grid, self._band)
             self._band = (self._band + 1) % 4
-            return None
+            if self._band != 0:
+                return None
 
         if self.reorder:
             np.take(self._raw_grid, LAYOUT_ROW_SRC, axis=0, out=self._row_tmp)
